@@ -1,6 +1,6 @@
 // Bump this whenever the authentication/runtime shell changes. iOS home-screen
 // apps can keep an older service-worker cache much longer than Safari tabs.
-const CACHE_NAME = 'so-tay-cao-mu-v10';
+const CACHE_NAME = 'so-tay-cao-mu-v11';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -41,6 +41,16 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Only intercept GET requests
   if (event.request.method !== 'GET') return;
+
+  // Browser extensions use chrome-extension:// (and other non-web schemes).
+  // CacheStorage only accepts http(s) requests, so leave those requests to
+  // the browser instead of turning a harmless extension fetch into an error.
+  try {
+    const requestUrl = new URL(event.request.url);
+    if (requestUrl.protocol !== 'http:' && requestUrl.protocol !== 'https:') return;
+  } catch {
+    return;
+  }
   
   // Do not intercept Firestore / Auth / Firebase API calls
   if (

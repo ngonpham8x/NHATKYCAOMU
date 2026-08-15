@@ -116,7 +116,10 @@ function isIosOrEmbeddedBrowser(): boolean {
   if (typeof window === 'undefined') return false;
   const ua = navigator.userAgent || '';
   const isIos = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const isEmbedded = /FBAN|FBAV|Instagram|Line|GSA|MicroMessenger|wv\)/i.test(ua);
+  // Cốc Cốc and embedded in-app browsers can report window.closed as
+  // cross-origin under COOP, which makes Firebase popup sign-in appear to
+  // finish and then return to the login screen. Redirect avoids that check.
+  const isEmbedded = /FBAN|FBAV|Instagram|Line|GSA|MicroMessenger|wv\)|coc_coc_browser/i.test(ua);
   return isIos || isEmbedded;
 }
 
