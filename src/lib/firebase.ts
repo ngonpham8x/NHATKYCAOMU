@@ -132,28 +132,36 @@ export interface AllowedUser {
   note?: string;
 }
 
-/** Start Google sign-in, using redirect on phones and in-app browsers. */
+/** Start Google sign-in. Popup is attempted first so Safari keeps the auth state
+ * in the same document; redirect remains a fallback when the browser blocks it. */
 export async function loginWithGoogle() {
   await authPersistenceReady;
   // Force Google to re-authenticate instead of silently reusing a trusted device session.
   googleProvider.setCustomParameters({ prompt: 'login' });
 
-  const useRedirect = typeof window !== 'undefined' && (
+  const canFallbackToRedirect = typeof window !== 'undefined' && (
     window.matchMedia?.('(pointer: coarse)').matches ||
     /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i.test(navigator.userAgent)
   );
 
-  if (useRedirect) {
+  try {
+    const loginPromise = signInWithPopup(auth, googleProvider);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Quá thời gian kết nối Google. Vui lòng bấm đăng nhập lại!')), 30000)
+    );
+    const result = (await Promise.race([loginPromise, timeoutPromise])) as any;
+    return result.user;
+  } catch (error: any) {
+    const canRetryWithRedirect = canFallbackToRedirect && (
+      error?.code === 'auth/popup-blocked' ||
+      error?.code === 'auth/operation-not-supported-in-this-environment'
+    );
+
+    if (!canRetryWithRedirect) throw error;
+
     await signInWithRedirect(auth, googleProvider);
     return null;
   }
-
-  const loginPromise = signInWithPopup(auth, googleProvider);
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Quá thời gian kết nối Google. Vui lòng bấm đăng nhập lại!')), 30000)
-  );
-  const result = (await Promise.race([loginPromise, timeoutPromise])) as any;
-  return result.user;
 }
 
 /** Resolve the Google redirect when mobile authentication returns to this page. */
