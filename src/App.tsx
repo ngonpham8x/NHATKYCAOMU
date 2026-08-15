@@ -166,10 +166,11 @@ export default function App() {
   useEffect(() => {
     let unsubPermission: (() => void) | null = null;
 
-    // Safety timer: guarantee unblocking auth loading after 5 seconds
+    // Safety timer: allow redirect OAuth and the first Firestore permission
+    // check to finish before showing the login screen.
     const safetyTimer = setTimeout(() => {
       setAuthLoading(false);
-    }, 5000);
+    }, 15000);
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser: User | null) => {
       setTimeout(async () => {

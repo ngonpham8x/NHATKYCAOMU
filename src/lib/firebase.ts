@@ -12,6 +12,7 @@ import {
   onAuthStateChanged,
   setPersistence,
   browserLocalPersistence,
+  browserSessionPersistence,
   User 
 } from 'firebase/auth';
 import { 
@@ -60,9 +61,18 @@ export const googleProvider = new GoogleAuthProvider();
 // Complete persistence setup before starting a redirect. This is important on iOS,
 // where Google opens an external page and returns to the PWA in a new document.
 const authPersistenceReady: Promise<void> = typeof window !== 'undefined'
-  ? setPersistence(auth, browserLocalPersistence).catch((err) => {
-      console.warn('Firebase setPersistence notice:', err);
-    })
+  ? (async () => {
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+      } catch (err) {
+        console.warn('Firebase local persistence notice:', err);
+        try {
+          await setPersistence(auth, browserSessionPersistence);
+        } catch (sessionErr) {
+          console.warn('Firebase session persistence notice:', sessionErr);
+        }
+      }
+    })()
   : Promise.resolve();
 
 // Custom Database ID support
@@ -102,6 +112,14 @@ export const ROOT_ADMIN_EMAILS = [
 ];
 export const ROOT_ADMIN_EMAIL = 'bhttq3@gmail.com';
 
+function isIosOrEmbeddedBrowser(): boolean {
+  if (typeof window === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  const isIos = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isEmbedded = /FBAN|FBAV|Instagram|Line|GSA|MicroMessenger|wv\)/i.test(ua);
+  return isIos || isEmbedded;
+}
+
 const LEGACY_SAMPLE_FARMS = ['Vườn Nhà', 'Vườn Đồi 1', 'Vườn Lô 2', 'Thợ Cạo A'];
 
 function removeLegacySampleFarms(farms?: string[]): string[] {
@@ -140,6 +158,26 @@ export async function loginWithGoogle() {
   // Force Google to re-authenticate instead of silently reusing a trusted device session.
   googleProvider.setCustomParameters({ prompt: 'login' });
 
+  // iOS Safari and embedded browsers often close OAuth popups before Firebase
+  // can deliver the result. Redirect keeps the flow in one browser context.
+  if (isIosOrEmbeddedBrowser()) {
+    try {
+      sessionStorage.setItem('google_redirect_pending', '1');
+    } catch {
+      // Some private browsing modes disable sessionStorage; redirect can still run.
+    }
+    try {
+      await signInWithRedirect(auth, googleProvider);
+      return null;
+    } catch (redirectError: any) {
+      // A few embedded browsers do not support redirect either; fall back to
+      // popup so the user still has a working sign-in path.
+      if (redirectError?.code !== 'auth/operation-not-supported-in-this-environment') {
+        throw redirectError;
+      }
+    }
+  }
+
   const canFallbackToRedirect = typeof window !== 'undefined' && (
     window.matchMedia?.('(pointer: coarse)').matches ||
     /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i.test(navigator.userAgent)
@@ -155,7 +193,8 @@ export async function loginWithGoogle() {
   } catch (error: any) {
     const canRetryWithRedirect = canFallbackToRedirect && (
       error?.code === 'auth/popup-blocked' ||
-      error?.code === 'auth/operation-not-supported-in-this-environment'
+      error?.code === 'auth/operation-not-supported-in-this-environment' ||
+      error?.code === 'auth/cancelled-popup-request'
     );
 
     if (!canRetryWithRedirect) throw error;
@@ -168,7 +207,22 @@ export async function loginWithGoogle() {
 /** Resolve the Google redirect when mobile authentication returns to this page. */
 export async function completeGoogleRedirect() {
   await authPersistenceReady;
-  return getRedirectResult(auth);
+  try {
+    const result = await getRedirectResult(auth);
+    try {
+      sessionStorage.removeItem('google_redirect_pending');
+    } catch {
+      // Ignore storage restrictions in private browsing modes.
+    }
+    return result;
+  } catch (error) {
+    try {
+      sessionStorage.removeItem('google_redirect_pending');
+    } catch {
+      // Ignore storage restrictions in private browsing modes.
+    }
+    throw error;
+  }
 }
 
 /**

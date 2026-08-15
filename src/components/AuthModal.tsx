@@ -27,10 +27,17 @@ export const AuthModal = ({
       } catch (err: unknown) {
         console.error('Login error:', err);
         const e = err as { code?: string; message?: string };
-        if (e.code !== 'auth/popup-closed-by-user') {
-          const errMsg = e.message || 'Lỗi không xác định';
-          setErrorMsg(`Lỗi Đăng Nhập [${e.code || 'SYS'}]: ${errMsg}`);
-        }
+        const friendlyMessages: Record<string, string> = {
+          'auth/popup-blocked': 'Trình duyệt đã chặn cửa sổ Google. Hãy cho phép popup hoặc thử lại trên Safari/Chrome chính thức.',
+          'auth/popup-closed-by-user': 'Cửa sổ Google đã bị đóng trước khi hoàn tất. Hãy bấm đăng nhập lại.',
+          'auth/cancelled-popup-request': 'Yêu cầu đăng nhập Google bị hủy. Hãy bấm đăng nhập lại một lần.',
+          'auth/unauthorized-domain': 'Tên miền ứng dụng chưa được cấp phép trong Firebase Authentication.',
+          'auth/operation-not-allowed': 'Phương thức đăng nhập Google chưa được bật trong Firebase Authentication.',
+          'auth/network-request-failed': 'Không kết nối được máy chủ Google. Hãy kiểm tra mạng rồi thử lại.',
+          'auth/invalid-api-key': 'Cấu hình Firebase không hợp lệ. Vui lòng báo Admin kiểm tra cấu hình ứng dụng.',
+        };
+        const errMsg = friendlyMessages[e.code || ''] || e.message || 'Lỗi không xác định';
+        setErrorMsg(`Lỗi đăng nhập${e.code ? ` [${e.code}]` : ''}: ${errMsg}`);
     } finally {
       setLoading(false);
     }
