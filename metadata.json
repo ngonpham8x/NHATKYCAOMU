@@ -1,0 +1,6 @@
+{
+  "name": "SỔ TAY CẠO MỦ",
+  "description": "Sổ tay quản lý và tính tiền cạo mủ cao su hằng ngày, tự động cộng dồn theo chu kỳ 10 ngày, báo cáo tháng và tổng kết năm.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

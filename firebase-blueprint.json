@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "users": {
+      "title": "Users",
+      "description": "User profile, settings and sub-emails delegation",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string" },
+        "subEmails": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "settings": { "type": "object" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "allowed_users": {
+      "title": "Allowed Users",
+      "description": "Email whitelist and permissions",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "addedBy": { "type": "string" },
+        "addedAt": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "required": ["email", "role"]
+    },
+    "access_requests": {
+      "title": "Access Requests",
+      "description": "Pending access requests submitted by users needing authorization",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "requestedAt": { "type": "string" },
+        "note": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["email", "requestedAt", "status"]
+    },
+    "harvest_records": {
+      "title": "Harvest Records",
+      "description": "Rubber harvest entries per user",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "degreeLatex": { "type": "object" },
+        "cupLatex": { "type": "object" },
+        "dailyTotal": { "type": "number" },
+        "cumulativeTotal": { "type": "number" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "date", "dailyTotal"]
+    }
+  }
+}
