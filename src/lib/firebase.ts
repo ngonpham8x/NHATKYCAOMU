@@ -133,7 +133,8 @@ export interface AllowedUser {
 
 /** Start Google sign-in, using redirect on phones and in-app browsers. */
 export async function loginWithGoogle() {
-  googleProvider.setCustomParameters({ prompt: 'select_account' });
+  // Force Google to re-authenticate instead of silently reusing a trusted device session.
+  googleProvider.setCustomParameters({ prompt: 'login' });
 
   const useRedirect = typeof window !== 'undefined' && (
     window.matchMedia?.('(pointer: coarse)').matches ||
