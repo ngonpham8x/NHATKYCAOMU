@@ -18,7 +18,8 @@ import {
   Plus,
   Mail,
   Pencil,
-  X
+  X,
+  CloudUpload
 } from 'lucide-react';
 import { Settings, HarvestRecord } from '../types';
 import { exportToJSON, importFromJSON, generateSampleData } from '../utils/storage';
@@ -36,6 +37,7 @@ interface SettingsTabProps {
   canInstallPWA?: boolean;
   onInstallPWA: () => void;
   currentUser?: UserProfile;
+  onNotify?: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({
@@ -46,6 +48,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   canInstallPWA = false,
   onInstallPWA,
   currentUser,
+  onNotify,
 }) => {
   const [degreePrice, setDegreePrice] = useState<string>(settings.defaultDegreePrice.toString());
   const [cupPrice, setCupPrice] = useState<string>(settings.defaultCupPrice.toString());
@@ -96,9 +99,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
   const [statusNotification, setStatusNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
+  const [isSyncingJson, setIsSyncingJson] = useState(false);
 
   const notifyStatus = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
     setStatusNotification({ type, msg });
+    onNotify?.(msg, type);
     setTimeout(() => setStatusNotification(null), 4000);
   };
 
@@ -285,6 +290,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       notifyStatus(`Đã THU HỒI QUYỀN TRUY CẬP của Email ${emailToRemove} thành công!`, 'success');
     } catch (e) {
       console.error('Error auto exporting report on revocation:', e);
+      notifyStatus(`Đã thu hồi quyền của ${emailToRemove}, nhưng chưa tạo được bản sao lưu trên web.`, 'error');
     }
   };
 
@@ -294,6 +300,32 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       notifyStatus('Sao lưu dữ liệu ra file JSON thành công!', 'success');
     } catch (e) {
       notifyStatus('Lỗi khi sao lưu dữ liệu!', 'error');
+    }
+  };
+
+  const handleSyncJSON = async () => {
+    if (!currentUser) {
+      notifyStatus('Vui lòng đăng nhập Google trước khi đồng bộ dữ liệu lên web.', 'error');
+      return;
+    }
+    if (records.length === 0) {
+      notifyStatus('Chưa có dữ liệu nhật ký để đồng bộ lên web.', 'error');
+      return;
+    }
+
+    setIsSyncingJson(true);
+    try {
+      const backupId = await createDatabaseBackup(currentUser.uid, currentUser.email, records, settings);
+      notifyStatus(`Đồng bộ JSON lên web thành công (${records.length} ngày). Mã sao lưu: ${backupId}`, 'success');
+    } catch (err) {
+      console.error('Cloud JSON sync failed:', err);
+      const code = err && typeof err === 'object' && 'code' in err ? String((err as { code?: unknown }).code) : '';
+      notifyStatus(
+        `Không thể đồng bộ JSON lên web${code ? ` (${code})` : ''}. Dữ liệu trên thiết bị vẫn được giữ nguyên.`,
+        'error'
+      );
+    } finally {
+      setIsSyncingJson(false);
     }
   };
 
@@ -791,10 +823,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-xs space-y-4">
         <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center space-x-2">
           <Database className="w-5 h-5 text-emerald-600" />
-          <span>4. Quản lý & Sao lưu dữ liệu (Offline Storage / JSON)</span>
+          <span>4. Quản lý & Sao lưu dữ liệu (Thiết bị / JSON / Web)</span>
         </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Export JSON */}
           <button
             onClick={handleExportJSON}
@@ -807,6 +839,22 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Tải file dự phòng toàn bộ {records.length} ngày cạo mủ về điện thoại hoặc máy tính.
+            </p>
+          </button>
+
+          {/* Cloud JSON sync */}
+          <button
+            onClick={handleSyncJSON}
+            disabled={isSyncingJson}
+            id="sync-json-cloud-btn"
+            className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 hover:border-blue-500 disabled:opacity-60 disabled:cursor-wait text-left transition space-y-1"
+          >
+            <div className="flex items-center space-x-2 font-bold text-blue-900 dark:text-blue-300 text-sm">
+              <CloudUpload className="w-4 h-4" />
+              <span>{isSyncingJson ? 'Đang đồng bộ lên web...' : 'Đồng bộ JSON lên web'}</span>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Lưu bản sao {records.length} ngày vào tài khoản Google để dùng trên thiết bị khác.
             </p>
           </button>
 

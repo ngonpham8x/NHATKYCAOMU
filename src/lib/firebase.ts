@@ -432,7 +432,6 @@ export async function createDatabaseBackup(
   // 1. Save to local storage cache
   try {
     localStorage.setItem(`auto_backup_${userId}`, jsonString);
-    localStorage.setItem(`last_backup_time_${userId}`, new Date().toISOString());
   } catch (e) {
     console.warn('LocalStorage backup failed:', e);
   }
@@ -448,8 +447,14 @@ export async function createDatabaseBackup(
       recordCount: records.length,
       dataJson: jsonString,
     });
+    try {
+      localStorage.setItem(`last_backup_time_${userId}`, new Date().toISOString());
+    } catch (e) {
+      console.warn('LocalStorage backup timestamp failed:', e);
+    }
   } catch (err) {
     console.error('Firestore backup failed:', err);
+    throw err instanceof Error ? err : new Error('Không thể lưu bản sao lên Firestore');
   }
 
   return backupId;

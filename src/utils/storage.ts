@@ -190,7 +190,9 @@ export function exportToJSON(records: HarvestRecord[], settings: Settings): void
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  // Safari/iOS may start the download asynchronously; revoking immediately
+  // can cancel the download before the browser has consumed the blob.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
 /**

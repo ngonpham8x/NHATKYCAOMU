@@ -614,6 +614,7 @@ export default function App() {
               canInstallPWA={canInstallPWA}
               onInstallPWA={handleInstallPWA}
               currentUser={currentUser}
+              onNotify={showToast}
             />
           )}
 
