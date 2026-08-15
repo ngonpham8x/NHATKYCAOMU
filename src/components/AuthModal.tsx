@@ -5,12 +5,14 @@ import { loginWithGoogle, requestAccessPermission, ROOT_ADMIN_EMAIL } from '../l
 interface AuthModalProps {
   onLoginSuccess: () => void;
   unauthorizedEmail?: string | null;
+  authError?: string | null;
   onLogoutAndRetry?: () => void;
   onDirectLogin?: (email: string, role: 'admin' | 'user') => void;
 }
 
 export const AuthModal = ({
   unauthorizedEmail,
+  authError,
   onLogoutAndRetry,
   onDirectLogin,
 }: AuthModalProps) => {
@@ -142,10 +144,10 @@ export const AuthModal = ({
                 </p>
               </div>
 
-              {errorMsg && (
-                <div className="p-3 bg-red-50 dark:bg-red-950/80 text-red-800 dark:text-red-200 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800 flex items-center space-x-2 animate-bounce">
+              {(authError || errorMsg) && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/80 text-red-800 dark:text-red-200 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800 flex items-center space-x-2">
                   <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
-                  <span>{errorMsg}</span>
+                  <span>{authError || errorMsg}</span>
                 </div>
               )}
 

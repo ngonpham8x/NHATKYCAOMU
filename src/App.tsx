@@ -83,6 +83,7 @@ export default function App() {
   });
   const [authLoading, setAuthLoading] = useState<boolean>(false);
   const [unauthorizedEmail, setUnauthorizedEmail] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Admin Viewing Workspace State
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
@@ -182,6 +183,7 @@ export default function App() {
         if (!firebaseUser) {
           setCurrentUser(null);
           setUnauthorizedEmail(null);
+          setAuthError(null);
           setRecords([]);
           rawRecordsRef.current = [];
           setActiveViewingUserId('');
@@ -214,6 +216,7 @@ export default function App() {
           try {
             if (!permissionInfo.isAllowed) {
               setUnauthorizedEmail(email);
+              setAuthError(null);
               setCurrentUser(null);
               localStorage.removeItem(`${USER_PROFILE_CACHE_PREFIX}${firebaseUser.uid}`);
               setAuthLoading(false);
@@ -222,6 +225,7 @@ export default function App() {
             }
 
             setUnauthorizedEmail(null);
+            setAuthError(null);
 
             // If Root Admin, ensure record exists in allowed_users (non-blocking)
             if (permissionInfo.isAdmin) {
@@ -251,8 +255,12 @@ export default function App() {
             if (permissionInfo.isAdmin) {
               fetchAllUsersForAdmin().then(setAllUsers).catch(console.error);
             }
-          } catch (err) {
+          } catch (err: unknown) {
             console.error('Error processing user login profile:', err);
+            const firebaseError = err as { code?: string; message?: string };
+            const detail = firebaseError.code || firebaseError.message || 'unknown-error';
+            setAuthError(`Không thể tạo hoặc tải hồ sơ Firestore (${detail}). Kiểm tra Firestore Database và Rules rồi thử lại.`);
+            setCurrentUser(null);
           } finally {
             setAuthLoading(false);
             clearTimeout(safetyTimer);
@@ -523,6 +531,7 @@ export default function App() {
     setCurrentUser(profile);
     setActiveViewingUserId(profile.uid);
     setUnauthorizedEmail(null);
+    setAuthError(null);
     setAuthLoading(false);
     try {
       localStorage.setItem(`${USER_PROFILE_CACHE_PREFIX}${profile.uid}`, JSON.stringify(profile));
@@ -536,6 +545,7 @@ export default function App() {
       <AuthModal
         onLoginSuccess={() => {}}
         unauthorizedEmail={unauthorizedEmail}
+        authError={authError}
         onLogoutAndRetry={handleLogout}
         onDirectLogin={handleDirectLogin}
       />
