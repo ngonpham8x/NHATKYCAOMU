@@ -1,4 +1,4 @@
-const CACHE_NAME = 'so-tay-cao-mu-v8';
+const CACHE_NAME = 'so-tay-cao-mu-v9';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -7,6 +7,7 @@ const STATIC_ASSETS = [
   '/pwa-192.png',
   '/pwa-512.png',
   '/apple-touch-icon.png',
+  '/apple-touch-icon-v2.png',
   '/android-chrome-192x192.png',
   '/android-chrome-512x512.png',
 ];

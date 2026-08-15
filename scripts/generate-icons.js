@@ -164,6 +164,8 @@ renderPngFromSvg(standardSvg, 512, path.resolve('./public/pwa-512.png'));
 
 // iOS Apple Touch Icons (uses full bleed square so iOS applies rounded corners cleanly with NO black background)
 renderPngFromSvg(maskableSvg, 180, path.resolve('./public/apple-touch-icon.png'));
+// Versioned filename busts the aggressive iOS home-screen icon cache after logo updates.
+renderPngFromSvg(maskableSvg, 180, path.resolve('./public/apple-touch-icon-v2.png'));
 renderPngFromSvg(maskableSvg, 180, path.resolve('./public/apple-touch-icon-precomposed.png'));
 renderPngFromSvg(maskableSvg, 167, path.resolve('./public/apple-touch-icon-167x167.png'));
 renderPngFromSvg(maskableSvg, 152, path.resolve('./public/apple-touch-icon-152x152.png'));
