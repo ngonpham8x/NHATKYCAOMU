@@ -6,10 +6,12 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signOut, 
   onAuthStateChanged,
   setPersistence,
-  browserLocalPersistence,
+  browserSessionPersistence,
   User 
 } from 'firebase/auth';
 import { 
@@ -25,6 +27,7 @@ import {
   query, 
   where, 
   orderBy, 
+  limit,
   onSnapshot,
   enableIndexedDbPersistence
 } from 'firebase/firestore';
@@ -36,9 +39,9 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Explicitly set browserLocalPersistence so logged in accounts remain logged in indefinitely across reloads/sessions
+// Keep the Firebase session only for the current browser session; closing the browser requires login again.
 if (typeof window !== 'undefined') {
-  setPersistence(auth, browserLocalPersistence).catch((err) => {
+  setPersistence(auth, browserSessionPersistence).catch((err) => {
     console.warn('Firebase setPersistence notice:', err);
   });
 }
@@ -80,6 +83,15 @@ export const ROOT_ADMIN_EMAILS = [
 ];
 export const ROOT_ADMIN_EMAIL = 'bhttq3@gmail.com';
 
+const LEGACY_SAMPLE_FARMS = ['Vườn Nhà', 'Vườn Đồi 1', 'Vườn Lô 2', 'Thợ Cạo A'];
+
+function removeLegacySampleFarms(farms?: string[]): string[] {
+  if (!Array.isArray(farms)) return [];
+  const matchesLegacyList = farms.length === LEGACY_SAMPLE_FARMS.length
+    && farms.every((farm) => LEGACY_SAMPLE_FARMS.includes(farm));
+  return matchesLegacyList ? [] : farms;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -103,23 +115,28 @@ export interface AllowedUser {
 }
 
 /**
- * Sign in with Google Popup
+ * Start Google sign-in. Redirect avoids popup blocking on phones and in-app browsers.
  */
 export async function loginWithGoogle() {
-  try {
-    googleProvider.setCustomParameters({
-      prompt: 'select_account'
-    });
-    const loginPromise = signInWithPopup(auth, googleProvider);
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Quá thời gian kết nối Google. Vui lòng bấm đăng nhập lại!')), 30000)
-    );
-    const result = (await Promise.race([loginPromise, timeoutPromise])) as any;
-    return result.user;
-  } catch (error) {
-    console.error('Error signing in with Google:', error);
-    throw error;
+  googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+  const useRedirect = typeof window !== 'undefined' && (
+    window.matchMedia?.('(pointer: coarse)').matches ||
+    /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  );
+
+  if (useRedirect) {
+    await signInWithRedirect(auth, googleProvider);
+    return null;
   }
+
+  const result = await signInWithPopup(auth, googleProvider);
+  return result.user;
+}
+
+/** Resolve a completed mobile redirect and surface any Firebase error to the UI. */
+export async function completeGoogleRedirect() {
+  return getRedirectResult(auth);
 }
 
 /**
@@ -349,7 +366,8 @@ export async function logSecurityAlert(
  */
 export function subscribeToSecurityAlerts(onUpdate: (alerts: SecurityAlert[]) => void) {
   const colRef = collection(db, 'security_alerts');
-  return onSnapshot(colRef, (snap) => {
+  const latestAlerts = query(colRef, orderBy('timestamp', 'desc'), limit(50));
+  return onSnapshot(latestAlerts, (snap) => {
     const list: SecurityAlert[] = [];
     snap.forEach((docSnap) => {
       list.push(docSnap.data() as SecurityAlert);
@@ -520,6 +538,7 @@ export async function syncUserProfile(
     const updatedSettings = {
       ...defaultSettings,
       ...(existing.settings || {}),
+      farmsList: removeLegacySampleFarms(existing.settings?.farmsList),
       ownerName: cleanOwnerName,
     };
 
@@ -748,7 +767,8 @@ export async function requestAccessPermission(email: string, note?: string) {
  */
 export function subscribeToAccessRequests(onUpdate: (requests: AccessRequest[]) => void) {
   const colRef = collection(db, 'access_requests');
-  return onSnapshot(colRef, (snap) => {
+  const pendingRequests = query(colRef, where('status', '==', 'pending'), limit(50));
+  return onSnapshot(pendingRequests, (snap) => {
     const list: AccessRequest[] = [];
     snap.forEach((docSnap) => {
       const data = docSnap.data() as AccessRequest;

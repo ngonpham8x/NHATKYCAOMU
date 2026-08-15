@@ -1,9 +1,10 @@
 {
-  "apiKey": "AIzaSyDummyKeyForLocalDevelopmentAndPreviewOnly",
-  "authDomain": "rubber-latex-manager.firebaseapp.com",
-  "projectId": "rubber-latex-manager",
-  "storageBucket": "rubber-latex-manager.appspot.com",
-  "messagingSenderId": "123456789012",
-  "appId": "1:123456789012:web:abcdef1234567890",
-  "firestoreDatabaseId": ""
+  "apiKey": "AIzaSyD8yH4aK_BM-EvaVL96nhNqRmQlzAsqhIM",
+  "authDomain": "nhatkycaomu.firebaseapp.com",
+  "projectId": "nhatkycaomu",
+  "storageBucket": "nhatkycaomu.firebasestorage.app",
+  "messagingSenderId": "748760195814",
+  "appId": "1:748760195814:web:7d8c3a6655c82ab19e5127",
+  "firestoreDatabaseId": "",
+  "measurementId": "G-X9QFBDV5SM"
 }
