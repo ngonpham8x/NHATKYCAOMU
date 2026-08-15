@@ -11,7 +11,7 @@ import {
   signOut, 
   onAuthStateChanged,
   setPersistence,
-  browserSessionPersistence,
+  browserLocalPersistence,
   User 
 } from 'firebase/auth';
 import { 
@@ -56,12 +56,13 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Keep the session scoped to the current browser session.
-if (typeof window !== 'undefined') {
-  setPersistence(auth, browserSessionPersistence).catch((err) => {
-    console.warn('Firebase setPersistence notice:', err);
-  });
-}
+// Complete persistence setup before starting a redirect. This is important on iOS,
+// where Google opens an external page and returns to the PWA in a new document.
+const authPersistenceReady: Promise<void> = typeof window !== 'undefined'
+  ? setPersistence(auth, browserLocalPersistence).catch((err) => {
+      console.warn('Firebase setPersistence notice:', err);
+    })
+  : Promise.resolve();
 
 // Custom Database ID support
 const customDbId = (firebaseConfig as Record<string, any>)?.firestoreDatabaseId;
@@ -133,6 +134,7 @@ export interface AllowedUser {
 
 /** Start Google sign-in, using redirect on phones and in-app browsers. */
 export async function loginWithGoogle() {
+  await authPersistenceReady;
   // Force Google to re-authenticate instead of silently reusing a trusted device session.
   googleProvider.setCustomParameters({ prompt: 'login' });
 
@@ -156,6 +158,7 @@ export async function loginWithGoogle() {
 
 /** Resolve the Google redirect when mobile authentication returns to this page. */
 export async function completeGoogleRedirect() {
+  await authPersistenceReady;
   return getRedirectResult(auth);
 }
 
