@@ -6,6 +6,8 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signOut, 
   onAuthStateChanged,
   setPersistence,
@@ -103,23 +105,28 @@ export interface AllowedUser {
 }
 
 /**
- * Sign in with Google Popup
+ * Start Google sign-in. Redirect avoids popup blocking on phones and in-app browsers.
  */
 export async function loginWithGoogle() {
-  try {
-    googleProvider.setCustomParameters({
-      prompt: 'select_account'
-    });
-    const loginPromise = signInWithPopup(auth, googleProvider);
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Quá thời gian kết nối Google. Vui lòng bấm đăng nhập lại!')), 30000)
-    );
-    const result = (await Promise.race([loginPromise, timeoutPromise])) as any;
-    return result.user;
-  } catch (error) {
-    console.error('Error signing in with Google:', error);
-    throw error;
+  googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+  const useRedirect = typeof window !== 'undefined' && (
+    window.matchMedia?.('(pointer: coarse)').matches ||
+    /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  );
+
+  if (useRedirect) {
+    await signInWithRedirect(auth, googleProvider);
+    return null;
   }
+
+  const result = await signInWithPopup(auth, googleProvider);
+  return result.user;
+}
+
+/** Resolve a completed mobile redirect and surface any Firebase error to the UI. */
+export async function completeGoogleRedirect() {
+  return getRedirectResult(auth);
 }
 
 /**

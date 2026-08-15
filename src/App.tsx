@@ -12,6 +12,7 @@ import {
 import { calculateCumulativeTotals } from './utils/calculations';
 import { 
   auth, 
+  completeGoogleRedirect,
   logoutFirebase, 
   checkEmailAccessPermission, 
   subscribeToEmailAccessPermission,
@@ -60,35 +61,16 @@ export default function App() {
   const removeToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
-  // Auth & Profile State: Initialized with Admin Profile to ensure 100% immediate usability without popup blocking
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    try {
-      const keys = Object.keys(localStorage);
-      const cachedKey = keys.find(k => k.startsWith(USER_PROFILE_CACHE_PREFIX));
-      if (cachedKey) {
-        const data = localStorage.getItem(cachedKey);
-        if (data) return JSON.parse(data);
-      }
-    } catch (e) {}
-    return {
-      uid: 'admin_bhttq3_gmail_com',
-      email: 'bhttq3@gmail.com',
-      displayName: 'Phạm Duy Ngôn (Admin)',
-      photoURL: '',
-      role: 'admin',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      settings: DEFAULT_SETTINGS,
-    };
-  });
-  const [authLoading, setAuthLoading] = useState<boolean>(false);
+  // A dashboard is available only after Firebase Auth validates the session.
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [unauthorizedEmail, setUnauthorizedEmail] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Admin Viewing Workspace State
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [activeViewingUserId, setActiveViewingUserId] = useState<string>(() => {
-    return currentUser?.uid || 'admin_bhttq3_gmail_com';
+    return currentUser?.uid || '';
   });
 
   // App Data State with LocalStorage Persistence
@@ -129,6 +111,15 @@ export default function App() {
   // Admin Alerts Counters
   const [securityAlertsCount, setSecurityAlertsCount] = useState<number>(0);
   const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
+
+  // Resolve the Google redirect when mobile authentication returns to this page.
+  useEffect(() => {
+    completeGoogleRedirect().catch((err: unknown) => {
+      console.error('Google redirect sign-in failed:', err);
+      const firebaseError = err as { code?: string; message?: string };
+      setAuthError(`Đăng nhập Google không hoàn tất (${firebaseError.code || firebaseError.message || 'unknown-error'}). Hãy thử lại.`);
+    });
+  }, []);
 
   // Subscribe to security alerts & access requests for Admin
   useEffect(() => {
@@ -183,7 +174,6 @@ export default function App() {
         if (!firebaseUser) {
           setCurrentUser(null);
           setUnauthorizedEmail(null);
-          setAuthError(null);
           setRecords([]);
           rawRecordsRef.current = [];
           setActiveViewingUserId('');
