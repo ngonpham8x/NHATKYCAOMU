@@ -150,8 +150,14 @@ export default function App() {
     };
   }, [currentUser?.role]);
 
-  // Is Sub-Viewer in Read-Only Mode (Admin and Owner always have full edit rights)
-  const isReadOnlyMode = currentUser?.role === 'sub_viewer';
+  // Sub-viewers and admins inspecting another workspace are read-only. The
+  // Firestore rules enforce the same boundary, so the UI must not pretend a
+  // cross-workspace edit/delete can be synchronized.
+  const isReadOnlyMode = currentUser?.role === 'sub_viewer' || (
+    currentUser?.role === 'admin' &&
+    Boolean(activeViewingUserId) &&
+    activeViewingUserId !== currentUser.uid
+  );
 
   // Sync dark theme when settings change
   useEffect(() => {
@@ -458,7 +464,7 @@ export default function App() {
       // `rec-*` IDs can be real Firestore document IDs from older saves, so
       // only generated `sample-*` records are local-only and must be skipped.
       if (currentUser && recordId && !recordId.startsWith('sample-')) {
-        await deleteRecordFromFirestore(recordId);
+        await deleteRecordFromFirestore(recordId, currentUser.uid);
       }
       showToast('Đã xóa và đồng bộ dữ liệu thành công!', 'success');
     } catch (err) {

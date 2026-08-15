@@ -817,9 +817,27 @@ export async function replaceUserRecordsInFirestore(
 /**
  * Delete a Harvest Record in Firestore
  */
-export async function deleteRecordFromFirestore(recordId: string) {
-  const docRef = doc(db, 'harvest_records', recordId);
-  await deleteDoc(docRef);
+export async function deleteRecordFromFirestore(recordId: string, ownerUserId: string) {
+  if (!recordId || !ownerUserId) {
+    throw new Error('Thiếu mã bản ghi hoặc tài khoản sở hữu bản ghi.');
+  }
+
+  const recordsCol = collection(db, 'harvest_records');
+  // Query the owner's records first. This handles both modern records where
+  // the document ID is used directly and older/imported records where the
+  // stored `id` field differs from the Firestore document ID.
+  const ownerSnapshot = await getDocs(query(recordsCol, where('userId', '==', ownerUserId)));
+  const matchingRefs = ownerSnapshot.docs
+    .filter((snapshot) => snapshot.id === recordId || snapshot.data().id === recordId)
+    .map((snapshot) => snapshot.ref);
+
+  if (matchingRefs.length === 0) {
+    throw new Error('Không tìm thấy bản ghi trên dữ liệu đám mây.');
+  }
+
+  const batch = writeBatch(db);
+  matchingRefs.forEach((recordRef) => batch.delete(recordRef));
+  await batch.commit();
 }
 
 /**
