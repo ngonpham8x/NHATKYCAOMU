@@ -38,17 +38,12 @@ import { HarvestRecord, Settings } from '../types';
 
 // Environment values take precedence so production credentials stay outside Git.
 // The JSON file is retained only as a local-preview fallback.
-// When the production PWA runs on Vercel, keep Firebase's auth helper on the
-// same origin. Safari/iOS blocks the cross-origin storage that redirect auth
-// otherwise needs. Vercel transparently proxies /__/auth/* to Firebase below.
-const productionAuthDomain = typeof window !== 'undefined'
-  && window.location.hostname === 'nhatkycaomu.vercel.app'
-  ? window.location.hostname
-  : firebaseAppletConfig.authDomain;
-
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseAppletConfig.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || productionAuthDomain,
+  // Keep Firebase's native auth domain: Google's OAuth client already has
+  // https://nhatkycaomu.firebaseapp.com/__/auth/handler authorized. Using the
+  // Vercel domain here causes Google's redirect_uri_mismatch (HTTP 400).
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseAppletConfig.authDomain,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseAppletConfig.projectId,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseAppletConfig.storageBucket,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseAppletConfig.messagingSenderId,
@@ -120,15 +115,13 @@ export const ROOT_ADMIN_EMAILS = [
 ];
 export const ROOT_ADMIN_EMAIL = 'bhttq3@gmail.com';
 
-function isIosOrEmbeddedBrowser(): boolean {
+function isRedirectPreferredBrowser(): boolean {
   if (typeof window === 'undefined') return false;
   const ua = navigator.userAgent || '';
-  const isIos = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   // Cốc Cốc and embedded in-app browsers can report window.closed as
   // cross-origin under COOP, which makes Firebase popup sign-in appear to
   // finish and then return to the login screen. Redirect avoids that check.
-  const isEmbedded = /FBAN|FBAV|Instagram|Line|GSA|MicroMessenger|wv\)|coc_coc_browser/i.test(ua);
-  return isIos || isEmbedded;
+  return /FBAN|FBAV|Instagram|Line|GSA|MicroMessenger|wv\)|coc_coc_browser/i.test(ua);
 }
 
 const LEGACY_SAMPLE_FARMS = ['Vườn Nhà', 'Vườn Đồi 1', 'Vườn Lô 2', 'Thợ Cạo A'];
@@ -169,9 +162,11 @@ export async function loginWithGoogle() {
   // Force Google to re-authenticate instead of silently reusing a trusted device session.
   googleProvider.setCustomParameters({ prompt: 'login' });
 
-  // iOS Safari and embedded browsers often close OAuth popups before Firebase
+  // Cốc Cốc and embedded browsers often close OAuth popups before Firebase
   // can deliver the result. Redirect keeps the flow in one browser context.
-  if (isIosOrEmbeddedBrowser()) {
+  // iOS Safari/PWA tries popup first; Firebase documents popup as the
+  // supported alternative when redirect storage is partitioned.
+  if (isRedirectPreferredBrowser()) {
     try {
       sessionStorage.setItem('google_redirect_pending', '1');
     } catch {
