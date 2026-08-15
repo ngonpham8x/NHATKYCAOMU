@@ -95,7 +95,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       if (editingRecord) {
         setDate(editingRecord.date || getTodayDateStr());
         setTime(editingRecord.time || '05:30');
-        setFarmName(editingRecord.farmName || farmsList[0] || 'Vườn Nhà');
+        setFarmName(editingRecord.farmName || farmsList[0] || '');
         setDegreeWeight(editingRecord.degreeLatex?.weight ? editingRecord.degreeLatex.weight.toString() : '');
         setDegreeValue(editingRecord.degreeLatex?.degree ? editingRecord.degreeLatex.degree.toString() : '');
         setDegreePrice(editingRecord.degreeLatex?.pricePerDegree ? editingRecord.degreeLatex.pricePerDegree.toString() : (settings?.defaultDegreePrice || 350).toString());
@@ -107,7 +107,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       } else {
         setDate(getTodayDateStr());
         setTime('05:30');
-        setFarmName(initialFarmName || farmsList[0] || 'Vườn Nhà');
+        setFarmName(initialFarmName || farmsList[0] || '');
         setDegreeWeight('');
         setDegreeValue('');
         setDegreePrice((settings?.defaultDegreePrice || 350).toString());
@@ -224,7 +224,8 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
     }
 
     if (!finalFarmName) {
-      finalFarmName = farmsList[0] || 'Vườn Nhà';
+      triggerError('Vui lòng chọn hoặc thêm Tên Vườn/Thợ Cạo.');
+      return;
     }
 
     // Check that at least one latex category has weight
@@ -724,5 +725,4 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
     </div>
   );
 };
-
 

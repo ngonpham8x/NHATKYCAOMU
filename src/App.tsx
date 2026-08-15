@@ -11,6 +11,7 @@ import {
 import { calculateCumulativeTotals } from './utils/calculations';
 import { 
   auth, 
+  completeGoogleRedirect,
   logoutFirebase, 
   subscribeToEmailAccessPermission,
   ensureRootAdminAllowed, 
@@ -74,6 +75,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [unauthorizedEmail, setUnauthorizedEmail] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Admin Viewing Workspace State
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
@@ -117,6 +119,13 @@ export default function App() {
   // Admin Alerts Counters
   const [securityAlertsCount, setSecurityAlertsCount] = useState<number>(0);
   const [pendingRequestsCount, setPendingRequestsCount] = useState<number>(0);
+
+  useEffect(() => {
+    completeGoogleRedirect().catch((err: unknown) => {
+      const firebaseError = err as { code?: string; message?: string };
+      setAuthError(`Đăng nhập Google không hoàn tất (${firebaseError.code || firebaseError.message || 'unknown-error'}). Hãy thử lại.`);
+    });
+  }, []);
 
   // Subscribe to security alerts & access requests for Admin
   useEffect(() => {
@@ -186,6 +195,7 @@ export default function App() {
           try {
             if (!permissionInfo.isAllowed) {
               setUnauthorizedEmail(email);
+              setAuthError(null);
               setCurrentUser(null);
               setAuthLoading(false);
               clearTimeout(safetyTimer);
@@ -193,6 +203,7 @@ export default function App() {
             }
 
             setUnauthorizedEmail(null);
+            setAuthError(null);
 
             // If Root Admin, ensure record exists in allowed_users (non-blocking)
             if (permissionInfo.isAdmin) {
@@ -218,8 +229,11 @@ export default function App() {
             if (permissionInfo.isAdmin) {
               fetchAllUsersForAdmin().then(setAllUsers).catch(console.error);
             }
-          } catch (err) {
+          } catch (err: unknown) {
             console.error('Error processing user login profile:', err);
+            const firebaseError = err as { code?: string; message?: string };
+            setAuthError(`Không thể tạo hoặc tải hồ sơ Firestore (${firebaseError.code || firebaseError.message || 'unknown-error'}). Kiểm tra Firestore Database và Rules rồi thử lại.`);
+            setCurrentUser(null);
           } finally {
             setAuthLoading(false);
             clearTimeout(safetyTimer);
@@ -393,7 +407,7 @@ export default function App() {
       isOpen: true,
       recordId: recordToDelete.id,
       dateStr: recordToDelete.date,
-      farmName: recordToDelete.farmName || 'Vườn Nhà',
+      farmName: recordToDelete.farmName || '',
     });
   };
 
@@ -480,6 +494,7 @@ export default function App() {
     return (
       <AuthModal
         unauthorizedEmail={unauthorizedEmail}
+        authError={authError}
         onLogoutAndRetry={handleLogout}
       />
     );
