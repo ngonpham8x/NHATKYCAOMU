@@ -13,7 +13,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'light',
   rubberFieldName: '',
   ownerName: 'Phạm Duy Ngôn',
-  farmsList: ['Vườn Nhà', 'Vườn Đồi 1', 'Vườn Lô 2', 'Thợ Cạo A'],
+  farmsList: [],
 };
 
 export function loadSettings(): Settings {
@@ -24,8 +24,8 @@ export function loadSettings(): Settings {
       if (!parsed.ownerName || parsed.ownerName === 'Nông Dân Cạo Mủ') {
         parsed.ownerName = 'Phạm Duy Ngôn';
       }
-      if (!parsed.farmsList || !Array.isArray(parsed.farmsList) || parsed.farmsList.length === 0) {
-        parsed.farmsList = ['Vườn Nhà', 'Vườn Đồi 1', 'Vườn Lô 2', 'Thợ Cạo A'];
+      if (!Array.isArray(parsed.farmsList)) {
+        parsed.farmsList = [];
       }
       return { ...DEFAULT_SETTINGS, ...parsed };
     }

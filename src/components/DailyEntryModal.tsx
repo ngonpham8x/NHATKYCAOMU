@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Calendar, Calculator, Check, AlertCircle, Info, Sparkles, Clock, Trees, Plus, Droplets, Coffee, Layers } from 'lucide-react';
+import { X, Calendar, Calculator, Check, AlertCircle, Info, Sparkles, Clock, Trees, Plus, Droplets, Coffee, Layers, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { HarvestRecord, Settings } from '../types';
 import { 
   formatVND, 
@@ -66,6 +66,8 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
   const [scrapPrice, setScrapPrice] = useState<string>(
     (settings.defaultScrapPrice || 15000).toString()
   );
+  const [isCupExpanded, setIsCupExpanded] = useState(false);
+  const [isScrapExpanded, setIsScrapExpanded] = useState(false);
 
   // Note
   const [note, setNote] = useState<string>('');
@@ -95,7 +97,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       if (editingRecord) {
         setDate(editingRecord.date || getTodayDateStr());
         setTime(editingRecord.time || '05:30');
-        setFarmName(editingRecord.farmName || farmsList[0] || 'Vườn Nhà');
+        setFarmName(editingRecord.farmName || farmsList[0] || '');
         setDegreeWeight(editingRecord.degreeLatex?.weight ? editingRecord.degreeLatex.weight.toString() : '');
         setDegreeValue(editingRecord.degreeLatex?.degree ? editingRecord.degreeLatex.degree.toString() : '');
         setDegreePrice(editingRecord.degreeLatex?.pricePerDegree ? editingRecord.degreeLatex.pricePerDegree.toString() : (settings?.defaultDegreePrice || 350).toString());
@@ -107,7 +109,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       } else {
         setDate(getTodayDateStr());
         setTime('05:30');
-        setFarmName(initialFarmName || farmsList[0] || 'Vườn Nhà');
+        setFarmName(initialFarmName || farmsList[0] || '');
         setDegreeWeight('');
         setDegreeValue('');
         setDegreePrice((settings?.defaultDegreePrice || 350).toString());
@@ -119,6 +121,8 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       }
       setIsAddingNewFarm(false);
       setNewFarmInput('');
+      setIsCupExpanded(Boolean(editingRecord?.cupLatex?.weight));
+      setIsScrapExpanded(Boolean(editingRecord?.scrapLatex?.weight));
       setValidationError('');
     }
   }, [isOpen, editingRecord?.id, initialFarmName]);
@@ -159,6 +163,14 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
     setFarmName(trimmed);
     setNewFarmInput('');
     setIsAddingNewFarm(false);
+  };
+
+  const handleClearFarmList = () => {
+    if (!window.confirm('Xóa toàn bộ danh sách Tên Vườn/Thợ Cạo? Nhật ký cạo mủ cũ sẽ được giữ nguyên.')) return;
+    onUpdateSettings?.({ ...settings, farmsList: [] });
+    setFarmName('');
+    setIsAddingNewFarm(true);
+    setNewFarmInput('');
   };
 
   // Real-time calculations with Vietnamese Decimal & Price parsing
@@ -221,10 +233,17 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       setFarmName(finalFarmName);
       setIsAddingNewFarm(false);
       setNewFarmInput('');
+      setIsCupExpanded(Boolean(editingRecord?.cupLatex?.weight));
+      setIsScrapExpanded(Boolean(editingRecord?.scrapLatex?.weight));
     }
 
     if (!finalFarmName) {
-      finalFarmName = farmsList[0] || 'Vườn Nhà';
+      finalFarmName = farmsList[0] || '';
+    }
+
+    if (!finalFarmName) {
+      triggerError('Vui lòng chọn hoặc thêm Tên Vườn/Thợ Cạo.');
+      return;
     }
 
     // Check that at least one latex category has weight
@@ -378,6 +397,17 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
                 >
                   <Plus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span>+ Thêm tên mới</span>
+                </button>
+              )}
+              {farmsList.length > 0 && !isAddingNewFarm && (
+                <button
+                  type="button"
+                  onClick={handleClearFarmList}
+                  className="text-xs font-bold text-red-700 hover:bg-red-100 active:scale-95 flex items-center space-x-1 cursor-pointer px-2 py-1.5 rounded-lg"
+                  title="Xóa danh sách, giữ nguyên nhật ký cũ"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Xóa DS</span>
                 </button>
               )}
             </div>
@@ -569,11 +599,15 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
                 <Coffee className="w-4 h-4 text-amber-600" />
                 <span>4. Mủ chén (Mủ kéo)</span>
               </h4>
-              <span className="text-xs font-bold text-amber-700 dark:text-amber-400">
-                Thành tiền: {formatVND(cupTotal)}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-400">Thành tiền: {formatVND(cupTotal)}</span>
+                <button type="button" onClick={() => setIsCupExpanded((open) => !open)} className="p-1 rounded-lg hover:bg-amber-100 text-amber-800" aria-label="Ẩn hoặc hiện Mủ chén">
+                  {isCupExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
 
+            {isCupExpanded && <>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 mb-1">
@@ -611,6 +645,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
             <div className="text-[11px] text-gray-500 dark:text-gray-400 italic">
               Công thức: {numCupWeight || '0'} kg × {numCupPrice || '0'} đ = <strong className="text-amber-700 dark:text-amber-300">{formatVND(cupTotal)}</strong>
             </div>
+            </>}
           </div>
 
           {/* Section 4: Mủ Tạp (Scrap Latex / Mủ Dây, Mủ Đông) - TÁCH RIÊNG BIỆT */}
@@ -620,11 +655,15 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
                 <Layers className="w-4 h-4 text-orange-600" />
                 <span>5. Mủ tạp (Mủ dây, Mủ đông)</span>
               </h4>
-              <span className="text-xs font-bold text-orange-700 dark:text-orange-400">
-                Thành tiền: {formatVND(scrapTotal)}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-orange-700 dark:text-orange-400">Thành tiền: {formatVND(scrapTotal)}</span>
+                <button type="button" onClick={() => setIsScrapExpanded((open) => !open)} className="p-1 rounded-lg hover:bg-orange-100 text-orange-800" aria-label="Ẩn hoặc hiện Mủ tạp">
+                  {isScrapExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
 
+            {isScrapExpanded && <>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 mb-1">
@@ -662,6 +701,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
             <div className="text-[11px] text-gray-500 dark:text-gray-400 italic">
               Công thức: {numScrapWeight || '0'} kg × {numScrapPrice || '0'} đ = <strong className="text-orange-700 dark:text-orange-300">{formatVND(scrapTotal)}</strong>
             </div>
+            </>}
           </div>
 
           {/* Section 5: Live Totals & Cumulative Estimate Banner */}
