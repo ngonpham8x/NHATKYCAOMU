@@ -8,6 +8,7 @@ import {
   Clock, 
   ChevronRight, 
   Layers,
+  History,
   Edit2,
   Trash2,
   Info,
@@ -56,7 +57,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const [detailModalConfig, setDetailModalConfig] = useState<{
     isOpen: boolean;
     title: string;
-    filterType: 'today' | 'cycle' | 'month' | 'year' | 'all';
+    filterType: 'today' | 'cycle' | 'previousCycle' | 'month' | 'year' | 'all';
   }>({
     isOpen: false,
     title: '',
@@ -98,6 +99,10 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const pad = (n: number) => (isNaN(n) ? '01' : n < 10 ? `0${n}` : `${n}`);
   const prevCycleKey = `${prevCycleYear}-${pad(prevCycleMonth)}-C${prevCycleNum}`;
 
+  const previousMonthCycles = getCyclesForMonth(prevCycleYear, prevCycleMonth, settings);
+  const previousCycleRange = previousMonthCycles.find((cycle) => cycle.cycleNum === prevCycleNum);
+  const previousCycleName = previousCycleRange?.cycleName || `Đợt ${prevCycleNum} (Tháng ${prevCycleMonth})`;
+
   const prevCycleRecords = records.filter((r) => {
     const cycle = getCycleInfo(r.date, settings);
     return cycle.key === prevCycleKey;
@@ -133,6 +138,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         return todayRecords;
       case 'cycle':
         return currentCycleRecords;
+      case 'previousCycle':
+        return prevCycleRecords;
       case 'month':
         return currentMonthRecords;
       case 'year':
@@ -141,7 +148,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       default:
         return records;
     }
-  }, [detailModalConfig.filterType, records, todayRecords, currentCycleRecords, currentMonthRecords, currentYearRecords]);
+  }, [detailModalConfig.filterType, records, todayRecords, currentCycleRecords, prevCycleRecords, currentMonthRecords, currentYearRecords]);
 
   // Handlers for card click
   const openTodayDetail = () => {
@@ -157,6 +164,14 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
       isOpen: true,
       title: `Chi Tiết Chu Kỳ Đợt Này (${currentCycleInfo.cycleName})`,
       filterType: 'cycle',
+    });
+  };
+
+  const openPreviousCycleDetail = () => {
+    setDetailModalConfig({
+      isOpen: true,
+      title: `Chi Tiết Chu Kỳ Trước (${previousCycleName})`,
+      filterType: 'previousCycle',
     });
   };
 
@@ -237,8 +252,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         </div>
       </div>
 
-      {/* Main Metric Cards Grid (5 Summary Cards - Interactive Clickable) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      {/* Main Metric Cards Grid (6 Summary Cards - Interactive Clickable) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {/* Card 1: Today's Total */}
         <div 
           onClick={openTodayDetail}
@@ -294,7 +309,33 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </div>
         </div>
 
-        {/* Card 3: Month Total */}
+        {/* Card 3: Previous Cycle Total */}
+        <div
+          onClick={openPreviousCycleDetail}
+          className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/60 shadow-xs flex flex-col justify-between hover:shadow-md hover:border-indigo-500 active:scale-98 transition cursor-pointer group"
+          title="Nhấn để xem chi tiết chu kỳ trước"
+        >
+          <div className="flex items-center justify-between text-gray-500 dark:text-gray-400 mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider group-hover:text-indigo-600 transition">Chu kỳ trước</span>
+            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition">
+              <History className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <div className="text-xl sm:text-2xl font-black text-indigo-800 dark:text-indigo-300">
+              {formatVND(prevCycleTotal)}
+            </div>
+            <p className="text-xs text-indigo-700 dark:text-indigo-400 font-medium mt-1 truncate" title={previousCycleName}>
+              {prevCycleRecords.length} ngày cạo · {previousCycleName}
+            </p>
+            <div className="mt-2 text-[10px] font-bold text-indigo-700 dark:text-indigo-400 flex items-center space-x-1">
+              <ExternalLink className="w-3 h-3" />
+              <span>Xem chi tiết chu kỳ</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 4: Month Total */}
         <div 
           onClick={openMonthDetail}
           className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-xs flex flex-col justify-between hover:shadow-md hover:border-teal-500 active:scale-98 transition cursor-pointer group"
@@ -320,7 +361,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </div>
         </div>
 
-        {/* Card 4: Year Total */}
+        {/* Card 5: Year Total */}
         <div 
           onClick={openYearDetail}
           className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-xs flex flex-col justify-between hover:shadow-md hover:border-amber-500 active:scale-98 transition cursor-pointer group"
@@ -346,7 +387,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           </div>
         </div>
 
-        {/* Card 5: Total Tapping Days */}
+        {/* Card 6: Total Tapping Days */}
         <div 
           onClick={openAllDaysDetail}
           className="col-span-2 md:col-span-1 bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-xs flex flex-col justify-between hover:shadow-md hover:border-blue-500 active:scale-98 transition cursor-pointer group"
