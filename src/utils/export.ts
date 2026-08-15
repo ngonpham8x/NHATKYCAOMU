@@ -6,11 +6,12 @@ function safePdfAmount(value: number): string {
 }
 
 /**
- * Text/table PDF fallback for browsers where html2canvas cannot render the
- * off-screen report (common on iOS Safari). This still downloads a real PDF;
- * it never opens the print dialog.
+ * Unicode-safe PDF fallback for browsers where html2canvas cannot render the
+ * off-screen report (common on iOS Safari). Text is drawn by the browser's
+ * Unicode Canvas font and then embedded as a PNG, so Vietnamese diacritics do
+ * not depend on jsPDF's limited built-in Helvetica encoding.
  */
-async function exportSimplePdf(
+async function exportCanvasPdf(
   JsPdf: any,
   records: HarvestRecord[],
   settings: Settings,
@@ -18,34 +19,65 @@ async function exportSimplePdf(
   filename: string
 ): Promise<void> {
   const pdf = new JsPdf({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  const autoTableModule = await import('jspdf-autotable');
-  const autoTable = (autoTableModule as any).default || (autoTableModule as any).autoTable;
-  if (typeof autoTable !== 'function') {
-    throw new Error('Không tải được bộ tạo bảng PDF');
-  }
-
-  const totalMoney = records.reduce((sum, record) => sum + record.dailyTotal, 0);
-  pdf.setTextColor(4, 120, 87);
-  pdf.setFontSize(14);
-  pdf.text(reportTitle, 14, 14);
-  pdf.setTextColor(55, 65, 81);
-  pdf.setFontSize(9);
-  pdf.text(
-    `Chủ vườn: ${settings.ownerName || 'Phạm Duy Ngôn'} - ${settings.rubberFieldName || 'Lô cạo mủ'} | Tổng: ${safePdfAmount(totalMoney)}`,
-    14,
-    21
-  );
-
+  const pageWidth = 1400;
+  const pageHeight = 990;
+  const margin = 40;
+  const tableTop = 142;
+  const headerHeight = 38;
+  const rowHeight = 29;
+  const availableWidth = pageWidth - margin * 2;
+  const columnWeights = [0.04, 0.08, 0.06, 0.06, 0.06, 0.11, 0.06, 0.11, 0.06, 0.11, 0.12, 0.13];
+  const headers = ['STT', 'Ngày', 'Đợt', 'Kg độ', 'Độ', 'Tiền độ', 'Kg chén', 'Tiền chén', 'Kg tạp', 'Tiền tạp', 'Tổng ngày', 'Cộng dồn'];
+  const rowsPerPage = Math.max(1, Math.floor((pageHeight - tableTop - 55 - headerHeight) / rowHeight));
   let runningTotal = 0;
-  autoTable(pdf, {
-    startY: 26,
-    theme: 'grid',
-    head: [['STT', 'Ngày', 'Đợt', 'Kg độ', 'Độ', 'Tiền độ', 'Kg chén', 'Tiền chén', 'Kg tạp', 'Tiền tạp', 'Tổng ngày', 'Cộng dồn']],
-    body: records.map((record, index) => {
+
+  const drawCellText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, width: number, align: 'left' | 'center' | 'right', bold = false) => {
+    ctx.font = `${bold ? '700' : '400'} 16px Arial, "Segoe UI", sans-serif`;
+    ctx.fillStyle = '#111827';
+    const padding = 8;
+    const textX = align === 'center' ? x + width / 2 : align === 'right' ? x + width - padding : x + padding;
+    ctx.textAlign = align;
+    ctx.fillText(text, textX, y);
+  };
+
+  for (let pageStart = 0; pageStart < records.length || pageStart === 0; pageStart += rowsPerPage) {
+    const canvas = document.createElement('canvas');
+    canvas.width = pageWidth;
+    canvas.height = pageHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Trình duyệt không hỗ trợ Canvas để tạo PDF');
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, pageWidth, pageHeight);
+    ctx.fillStyle = '#047857';
+    ctx.font = '700 25px Arial, "Segoe UI", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(reportTitle, margin, 42);
+    ctx.fillStyle = '#374151';
+    ctx.font = '400 15px Arial, "Segoe UI", sans-serif';
+    ctx.fillText(`Chủ vườn: ${settings.ownerName || 'Phạm Duy Ngôn'} - ${settings.rubberFieldName || 'Lô cạo mủ'}`, margin, 70);
+    ctx.fillText(`Số ngày cạo: ${records.length} | Tổng thu nhập: ${safePdfAmount(records.reduce((sum, record) => sum + record.dailyTotal, 0))}`, margin, 94);
+
+    const widths = columnWeights.map((weight) => weight * availableWidth);
+    let x = margin;
+    headers.forEach((header, index) => {
+      ctx.fillStyle = '#047857';
+      ctx.fillRect(x, tableTop, widths[index], headerHeight);
+      ctx.strokeStyle = '#ffffff';
+      ctx.strokeRect(x, tableTop, widths[index], headerHeight);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 14px Arial, "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(header, x + widths[index] / 2, tableTop + 25);
+      x += widths[index];
+    });
+
+    const pageRecords = records.slice(pageStart, pageStart + rowsPerPage);
+    pageRecords.forEach((record, rowIndex) => {
       runningTotal += record.dailyTotal;
       const cycle = getCycleInfo(record.date);
-      return [
-        index + 1,
+      const values = [
+        String(pageStart + rowIndex + 1),
         formatDateVN(record.date),
         `Đợt ${cycle.cycleNum}`,
         record.degreeLatex.weight > 0 ? formatWeight(record.degreeLatex.weight) : '-',
@@ -58,12 +90,26 @@ async function exportSimplePdf(
         safePdfAmount(record.dailyTotal),
         safePdfAmount(runningTotal),
       ];
-    }),
-    styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
-    headStyles: { fillColor: [4, 120, 87], textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [249, 250, 251] },
-    margin: { left: 10, right: 10 },
-  });
+      const y = tableTop + headerHeight + rowIndex * rowHeight;
+      x = margin;
+      values.forEach((value, index) => {
+        ctx.fillStyle = rowIndex % 2 === 0 ? '#ffffff' : '#f9fafb';
+        ctx.fillRect(x, y, widths[index], rowHeight);
+        ctx.strokeStyle = '#d1d5db';
+        ctx.strokeRect(x, y, widths[index], rowHeight);
+        const align = index === 0 || index === 1 || index === 2 ? 'center' : 'right';
+        drawCellText(ctx, value, x, y + 20, widths[index], align, index === 10 || index === 11);
+        x += widths[index];
+      });
+    });
+
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '400 13px Arial, "Segoe UI", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`Trang ${Math.floor(pageStart / rowsPerPage) + 1}`, pageWidth - margin, pageHeight - 22);
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 297, 210);
+    if (pageStart + rowsPerPage < records.length) pdf.addPage();
+  }
 
   pdf.save(filename);
 }
@@ -516,7 +562,7 @@ export async function exportToPDF(
     try {
       const cleanTitle = reportTitle.replace(/[^a-zA-Z0-9_\u00C0-\u024F]/g, '_');
       const filename = `${cleanTitle}_${new Date().toISOString().slice(0, 10)}.pdf`;
-      await exportSimplePdf(jsPDF, sorted, settings, reportTitle, filename);
+      await exportCanvasPdf(jsPDF, sorted, settings, reportTitle, filename);
     } catch (fallbackError) {
       console.error('Lỗi khi tạo PDF dự phòng:', fallbackError);
       throw fallbackError;
