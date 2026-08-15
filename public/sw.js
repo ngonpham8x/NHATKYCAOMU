@@ -1,4 +1,6 @@
-const CACHE_NAME = 'so-tay-cao-mu-v9';
+// Bump this whenever the authentication/runtime shell changes. iOS home-screen
+// apps can keep an older service-worker cache much longer than Safari tabs.
+const CACHE_NAME = 'so-tay-cao-mu-v10';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

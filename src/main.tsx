@@ -160,8 +160,22 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator && !window.loc
   const registerSW = () => {
     navigator.serviceWorker
       .register('/sw.js')
+      .then((registration) => {
+        // Ask the browser to check the no-cache service-worker endpoint now,
+        // rather than waiting for its normal periodic update interval.
+        registration.update().catch(() => {});
+      })
       .catch(() => {});
   };
+
+  // When a new worker claims an already-open PWA, refresh once so the page
+  // immediately executes the newly deployed authentication bundle.
+  let refreshingAfterSWUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshingAfterSWUpdate) return;
+    refreshingAfterSWUpdate = true;
+    window.location.reload();
+  });
 
   if (document.readyState === 'complete') {
     registerSW();
