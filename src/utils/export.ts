@@ -1,6 +1,73 @@
 import { HarvestRecord, Settings } from '../types';
 import { formatDateVN, formatVND, formatWeight, formatDegree, getCycleInfo } from './calculations';
 
+function safePdfAmount(value: number): string {
+  return formatVND(value).replace(/đ/g, 'VND');
+}
+
+/**
+ * Text/table PDF fallback for browsers where html2canvas cannot render the
+ * off-screen report (common on iOS Safari). This still downloads a real PDF;
+ * it never opens the print dialog.
+ */
+async function exportSimplePdf(
+  JsPdf: any,
+  records: HarvestRecord[],
+  settings: Settings,
+  reportTitle: string,
+  filename: string
+): Promise<void> {
+  const pdf = new JsPdf({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const autoTableModule = await import('jspdf-autotable');
+  const autoTable = (autoTableModule as any).default || (autoTableModule as any).autoTable;
+  if (typeof autoTable !== 'function') {
+    throw new Error('Không tải được bộ tạo bảng PDF');
+  }
+
+  const totalMoney = records.reduce((sum, record) => sum + record.dailyTotal, 0);
+  pdf.setTextColor(4, 120, 87);
+  pdf.setFontSize(14);
+  pdf.text(reportTitle, 14, 14);
+  pdf.setTextColor(55, 65, 81);
+  pdf.setFontSize(9);
+  pdf.text(
+    `Chủ vườn: ${settings.ownerName || 'Phạm Duy Ngôn'} - ${settings.rubberFieldName || 'Lô cạo mủ'} | Tổng: ${safePdfAmount(totalMoney)}`,
+    14,
+    21
+  );
+
+  let runningTotal = 0;
+  autoTable(pdf, {
+    startY: 26,
+    theme: 'grid',
+    head: [['STT', 'Ngày', 'Đợt', 'Kg độ', 'Độ', 'Tiền độ', 'Kg chén', 'Tiền chén', 'Kg tạp', 'Tiền tạp', 'Tổng ngày', 'Cộng dồn']],
+    body: records.map((record, index) => {
+      runningTotal += record.dailyTotal;
+      const cycle = getCycleInfo(record.date);
+      return [
+        index + 1,
+        formatDateVN(record.date),
+        `Đợt ${cycle.cycleNum}`,
+        record.degreeLatex.weight > 0 ? formatWeight(record.degreeLatex.weight) : '-',
+        record.degreeLatex.degree > 0 ? formatDegree(record.degreeLatex.degree) : '-',
+        record.degreeLatex.total > 0 ? safePdfAmount(record.degreeLatex.total) : '-',
+        record.cupLatex.weight > 0 ? formatWeight(record.cupLatex.weight) : '-',
+        record.cupLatex.total > 0 ? safePdfAmount(record.cupLatex.total) : '-',
+        (record.scrapLatex?.weight || 0) > 0 ? formatWeight(record.scrapLatex?.weight || 0) : '-',
+        (record.scrapLatex?.total || 0) > 0 ? safePdfAmount(record.scrapLatex?.total || 0) : '-',
+        safePdfAmount(record.dailyTotal),
+        safePdfAmount(runningTotal),
+      ];
+    }),
+    styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
+    headStyles: { fillColor: [4, 120, 87], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [249, 250, 251] },
+    margin: { left: 10, right: 10 },
+  });
+
+  pdf.save(filename);
+}
+
 /**
  * Export daily records list to Excel (.xlsx) file with full UTF-8 Vietnamese support,
  * clear formatted headers, summary metrics, custom column widths, and number formatting.
@@ -446,7 +513,14 @@ export async function exportToPDF(
       document.body.removeChild(container);
     }
     console.error('Lỗi khi tạo PDF:', error);
-    triggerPrint();
+    try {
+      const cleanTitle = reportTitle.replace(/[^a-zA-Z0-9_\u00C0-\u024F]/g, '_');
+      const filename = `${cleanTitle}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      await exportSimplePdf(jsPDF, sorted, settings, reportTitle, filename);
+    } catch (fallbackError) {
+      console.error('Lỗi khi tạo PDF dự phòng:', fallbackError);
+      throw fallbackError;
+    }
   }
 }
 

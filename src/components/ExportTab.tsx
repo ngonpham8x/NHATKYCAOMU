@@ -75,8 +75,7 @@ export const ExportTab: React.FC<ExportTabProps> = ({ records, settings }) => {
       notifyExport('✅ Đã xuất file PDF thành công! File đã được tải về máy của bạn.', 'success');
     } catch (err) {
       console.error(err);
-      notifyExport('Lỗi khi xuất PDF. Hệ thống mở giao diện in để bạn lưu dạng PDF.', 'error');
-      triggerPrint();
+      notifyExport('Không thể tạo file PDF tự động. Vui lòng thử lại hoặc dùng nút In Báo Cáo.', 'error');
     } finally {
       setIsExportingPdf(false);
     }
