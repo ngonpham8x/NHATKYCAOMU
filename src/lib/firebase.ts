@@ -11,7 +11,7 @@ import {
   signOut, 
   onAuthStateChanged,
   setPersistence,
-  browserLocalPersistence,
+  browserSessionPersistence,
   User 
 } from 'firebase/auth';
 import { 
@@ -38,9 +38,9 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Explicitly set browserLocalPersistence so logged in accounts remain logged in indefinitely across reloads/sessions
+// Keep the Firebase session only for the current browser session; closing the browser requires login again.
 if (typeof window !== 'undefined') {
-  setPersistence(auth, browserLocalPersistence).catch((err) => {
+  setPersistence(auth, browserSessionPersistence).catch((err) => {
     console.warn('Firebase setPersistence notice:', err);
   });
 }
