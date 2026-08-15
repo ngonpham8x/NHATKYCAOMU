@@ -13,13 +13,14 @@ import {
   Info
 } from 'lucide-react';
 import { HarvestRecord, Settings } from '../types';
-import { 
+import {
   formatVND, 
   formatDateVN, 
   formatWeight, 
   formatDegree, 
-  getCycleInfo 
+  getCycleInfo
 } from '../utils/calculations';
+import { hasMultipleActualFarms } from '../utils/farmDisplay';
 
 interface DailyLogListProps {
   records: HarvestRecord[];
@@ -84,6 +85,7 @@ export const DailyLogList: React.FC<DailyLogListProps> = ({
   const totalFilteredDegreeWeight = filteredRecords.reduce((s, r) => s + r.degreeLatex.weight, 0);
   const totalFilteredCupWeight = filteredRecords.reduce((s, r) => s + r.cupLatex.weight, 0);
   const totalFilteredScrapWeight = filteredRecords.reduce((s, r) => s + (r.scrapLatex?.weight || 0), 0);
+  const shouldShowFarmLabels = hasMultipleActualFarms(records, settings);
 
   // Close detail view on ESC
   React.useEffect(() => {
@@ -336,9 +338,11 @@ export const DailyLogList: React.FC<DailyLogListProps> = ({
                     <span className="text-base font-black text-gray-900 dark:text-white">
                       {formatDateVN(r.date)}
                     </span>
-                    <span className="text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 font-bold px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700/80">
-                      🌳 {r.farmName || 'Vườn Cao Su'}
-                    </span>
+                    {shouldShowFarmLabels && (
+                      <span className="text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 font-bold px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700/80">
+                        🌳 {r.farmName || settings?.rubberFieldName || 'Vườn Cao Su'}
+                      </span>
+                    )}
                     {r.time && (
                       <span className="text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 font-bold px-1.5 py-0.5 rounded font-mono">
                         ⏰ {r.time}

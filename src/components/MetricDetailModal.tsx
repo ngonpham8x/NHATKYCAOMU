@@ -21,6 +21,7 @@ import {
 import { HarvestRecord, Settings } from '../types';
 import { formatDateVN, formatVND, formatWeight, formatDegree, getCycleInfo } from '../utils/calculations';
 import { exportToPDF, exportToExcel } from '../utils/export';
+import { hasMultipleActualFarms } from '../utils/farmDisplay';
 import { ShareModal } from './ShareModal';
 import { ConfirmModal } from './ConfirmModal';
 
@@ -158,21 +159,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({
 
   const farmSummaries = Array.from(farmSummaryMap.values());
 
-  // Worker labels such as "Thợ Cạo ..." are not separate farms. Count only
-  // actual farm names when deciding whether to show the farm breakdown.
-  const isTapperName = (name: string) => /^thợ\s+cạo\b/i.test(name.trim());
-  const actualFarmNames = new Set<string>();
-  const primaryFarmName = (settings.rubberFieldName || '').trim();
-  if (primaryFarmName && !isTapperName(primaryFarmName)) {
-    actualFarmNames.add(primaryFarmName.toLocaleLowerCase());
-  }
-  farmSummaries.forEach((summary) => {
-    const name = summary.farmName.trim();
-    if (name && !isTapperName(name)) {
-      actualFarmNames.add(name.toLocaleLowerCase());
-    }
-  });
-  const shouldShowFarmBreakdown = actualFarmNames.size > 1;
+  const shouldShowFarmBreakdown = hasMultipleActualFarms(records, settings);
 
   const sortedRecords = [...records].sort((a, b) => b.date.localeCompare(a.date));
 
@@ -656,7 +643,6 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({
 
               {sortedRecords.map((r) => {
                 const cycle = getCycleInfo(r.date);
-                const gardenName = r.farmName || settings.rubberFieldName || 'Chưa đặt tên';
                 return (
                   <div 
                     key={r.id}
@@ -668,10 +654,12 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({
                         <span className="text-base font-black text-gray-900 dark:text-white">
                           📅 {formatDateVN(r.date)}
                         </span>
-                        <span className="text-xs bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 font-black px-2.5 py-0.5 rounded-full flex items-center space-x-1 border border-amber-300 dark:border-amber-700/80 shadow-2xs">
-                          <Trees className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-                          <span>🌳 {gardenName}</span>
-                        </span>
+                        {shouldShowFarmBreakdown && (
+                          <span className="text-xs bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 font-black px-2.5 py-0.5 rounded-full flex items-center space-x-1 border border-amber-300 dark:border-amber-700/80 shadow-2xs">
+                            <Trees className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                            <span>🌳 {r.farmName || settings.rubberFieldName || 'Chưa đặt tên'}</span>
+                          </span>
+                        )}
                         {r.time && (
                           <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-mono font-bold px-2 py-0.5 rounded-md flex items-center space-x-1">
                             <Clock className="w-3 h-3 text-emerald-600" />

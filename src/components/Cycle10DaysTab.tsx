@@ -30,6 +30,7 @@ import {
   parseVietnamesePrice
 } from '../utils/calculations';
 import { NumericInput } from './NumericInput';
+import { hasMultipleActualFarms } from '../utils/farmDisplay';
 
 interface Cycle10DaysTabProps {
   records: HarvestRecord[];
@@ -58,6 +59,7 @@ export const Cycle10DaysTab: React.FC<Cycle10DaysTabProps> = ({
   });
 
   const [summaryViewMode, setSummaryViewMode] = useState<'cards' | 'table'>('cards');
+  const shouldShowFarmLabels = hasMultipleActualFarms(records, settings);
 
   // Calculate day range for selected cycle
   const currentCycleObj = monthCycles.find((c) => c.cycleNum === selectedCycleNum) || monthCycles[0];
@@ -800,7 +802,7 @@ export const Cycle10DaysTab: React.FC<Cycle10DaysTabProps> = ({
                         <span className="font-extrabold text-sm text-gray-900 dark:text-white">
                           Ngày {d.dayNum < 10 ? '0' + d.dayNum : d.dayNum} ({d.displayDate})
                         </span>
-                        {rec && (
+                        {rec && shouldShowFarmLabels && (
                           <span className="text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 font-bold px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700/80">
                             🌳 {rec.farmName || settings.rubberFieldName || 'Chưa đặt tên'}
                           </span>
