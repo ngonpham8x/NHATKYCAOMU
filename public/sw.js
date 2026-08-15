@@ -1,4 +1,4 @@
-const CACHE_NAME = 'so-tay-cao-mu-v7';
+const CACHE_NAME = 'so-tay-cao-mu-v8';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -92,4 +92,3 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
-

@@ -4,6 +4,12 @@
   "description": "Sổ tay quản lý và tính tiền mủ cao su hằng ngày, tự động cộng dồn theo chu kỳ 10 ngày, báo cáo tháng và tổng kết năm.",
   "icons": [
     {
+      "src": "/logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
       "src": "/apple-touch-icon.png",
       "type": "image/png",
       "sizes": "180x180",
@@ -32,11 +38,6 @@
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "maskable"
-    },
-    {
-      "src": "/logo.svg",
-      "type": "image/svg+xml",
-      "sizes": "any"
     }
   ],
   "start_url": "/",
