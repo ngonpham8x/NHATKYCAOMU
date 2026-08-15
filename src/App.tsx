@@ -297,18 +297,13 @@ export default function App() {
     }
 
     const unsubscribe = subscribeToUserRecords(activeViewingUserId, (rawRecords) => {
-      if (rawRecords.length > 0) {
-        rawRecordsRef.current = rawRecords;
-        const recalculated = calculateCumulativeTotals(rawRecords, settingsRef.current);
-        setRecords(recalculated);
-        saveRecords(recalculated, settingsRef.current);
-      } else {
-        // If Firestore returned empty, check if we have local records
-        if (rawRecordsRef.current.length > 0) {
-          const recalculated = calculateCumulativeTotals(rawRecordsRef.current, settingsRef.current);
-          setRecords(recalculated);
-        }
-      }
+      // Firestore is the source of truth for a signed-in workspace. An empty
+      // snapshot is a valid update (for example after deleting the last log),
+      // so never fall back to stale local records here.
+      rawRecordsRef.current = rawRecords;
+      const recalculated = calculateCumulativeTotals(rawRecords, settingsRef.current);
+      setRecords(recalculated);
+      saveRecords(recalculated, settingsRef.current);
     });
 
     return () => unsubscribe();
@@ -452,19 +447,29 @@ export default function App() {
 
     // Optimistic UI delete update: strictly delete matching ID only
     const currentList = rawRecordsRef.current.length > 0 ? rawRecordsRef.current : records;
+    const previousRaw = [...currentList];
     const filteredRaw = currentList.filter((r) => r.id !== recordId);
     rawRecordsRef.current = filteredRaw;
     const computed = calculateCumulativeTotals(filteredRaw, settingsRef.current);
     setRecords(computed);
     saveRecords(computed, settingsRef.current);
-    showToast('Đã xóa dữ liệu thành công!', 'info');
 
     try {
-      if (recordId && !recordId.startsWith('sample-') && !recordId.startsWith('rec-')) {
+      // `rec-*` IDs can be real Firestore document IDs from older saves, so
+      // only generated `sample-*` records are local-only and must be skipped.
+      if (currentUser && recordId && !recordId.startsWith('sample-')) {
         await deleteRecordFromFirestore(recordId);
       }
+      showToast('Đã xóa và đồng bộ dữ liệu thành công!', 'success');
     } catch (err) {
       console.error('Error deleting record from Firestore:', err);
+      // Do not leave this device looking correct while the cloud still has
+      // the record. Restore the previous state and report the sync failure.
+      rawRecordsRef.current = previousRaw;
+      const restored = calculateCumulativeTotals(previousRaw, settingsRef.current);
+      setRecords(restored);
+      saveRecords(restored, settingsRef.current);
+      showToast('Không thể đồng bộ việc xóa. Dữ liệu đã được khôi phục.', 'error');
     }
   };
 
