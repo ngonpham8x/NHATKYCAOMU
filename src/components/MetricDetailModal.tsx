@@ -396,7 +396,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({
             </div>
 
             {/* Breakdown per farm */}
-            {farmSummaries.length > 0 && (
+            {/* A single-farm owner does not need a per-farm breakdown. Keep
+                this whole block hidden until records contain at least two
+                distinct farm/tapper names; adding a second farm later makes
+                it appear automatically. */}
+            {farmSummaries.length > 1 && (
               <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-2 text-left shadow-2xs">
                 <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-1.5">
                   <span className="text-[11px] font-black text-emerald-950 dark:text-emerald-300 uppercase tracking-wider flex items-center space-x-1">
