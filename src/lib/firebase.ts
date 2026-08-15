@@ -27,6 +27,7 @@ import {
   query, 
   where, 
   orderBy, 
+  limit,
   onSnapshot,
   enableIndexedDbPersistence
 } from 'firebase/firestore';
@@ -81,6 +82,15 @@ export const ROOT_ADMIN_EMAILS = [
   'ngocnt1091@gmail.com'
 ];
 export const ROOT_ADMIN_EMAIL = 'bhttq3@gmail.com';
+
+const LEGACY_SAMPLE_FARMS = ['Vườn Nhà', 'Vườn Đồi 1', 'Vườn Lô 2', 'Thợ Cạo A'];
+
+function removeLegacySampleFarms(farms?: string[]): string[] {
+  if (!Array.isArray(farms)) return [];
+  const matchesLegacyList = farms.length === LEGACY_SAMPLE_FARMS.length
+    && farms.every((farm) => LEGACY_SAMPLE_FARMS.includes(farm));
+  return matchesLegacyList ? [] : farms;
+}
 
 export interface UserProfile {
   uid: string;
@@ -356,7 +366,8 @@ export async function logSecurityAlert(
  */
 export function subscribeToSecurityAlerts(onUpdate: (alerts: SecurityAlert[]) => void) {
   const colRef = collection(db, 'security_alerts');
-  return onSnapshot(colRef, (snap) => {
+  const latestAlerts = query(colRef, orderBy('timestamp', 'desc'), limit(50));
+  return onSnapshot(latestAlerts, (snap) => {
     const list: SecurityAlert[] = [];
     snap.forEach((docSnap) => {
       list.push(docSnap.data() as SecurityAlert);
@@ -527,6 +538,7 @@ export async function syncUserProfile(
     const updatedSettings = {
       ...defaultSettings,
       ...(existing.settings || {}),
+      farmsList: removeLegacySampleFarms(existing.settings?.farmsList),
       ownerName: cleanOwnerName,
     };
 
@@ -755,7 +767,8 @@ export async function requestAccessPermission(email: string, note?: string) {
  */
 export function subscribeToAccessRequests(onUpdate: (requests: AccessRequest[]) => void) {
   const colRef = collection(db, 'access_requests');
-  return onSnapshot(colRef, (snap) => {
+  const pendingRequests = query(colRef, where('status', '==', 'pending'), limit(50));
+  return onSnapshot(pendingRequests, (snap) => {
     const list: AccessRequest[] = [];
     snap.forEach((docSnap) => {
       const data = docSnap.data() as AccessRequest;
