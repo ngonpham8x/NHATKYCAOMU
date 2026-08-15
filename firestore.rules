@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isRootAdmin() {
+      return isAuthenticated() && (
+        getUserEmail() == 'tayninhdoimoi@gmail.com' ||
+        getUserEmail() == 'ngonpham8x@gmail.com' ||
+        getUserEmail() == 'bhttq3@gmail.com' ||
+        getUserEmail() == 'ngocnt1091@gmail.com'
+      );
+    }
+
+    function isAllowedAdmin() {
+      return isAuthenticated() && (
+        isRootAdmin() ||
+        (
+          exists(/databases/$(database)/documents/allowed_users/$(getUserEmail())) &&
+          get(/databases/$(database)/documents/allowed_users/$(getUserEmail())).data.role == 'admin'
+        )
+      );
+    }
+
+    // Allowed Users Collection (Access Whitelist)
+    match /allowed_users/{emailDoc} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && isAllowedAdmin();
+    }
+
+    // Access Requests Collection (Pending Authorization Requests)
+    match /access_requests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if true;
+      allow update, delete: if isAuthenticated() && isAllowedAdmin();
+    }
+
+    // User Profiles & Settings
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && isAllowedAdmin();
+    }
+
+    // Security Alerts Collection (Unauthorized Access Alerts for Admin)
+    match /security_alerts/{alertId} {
+      allow read: if isAuthenticated();
+      allow create: if true;
+      allow update, delete: if isAuthenticated() && isAllowedAdmin();
+    }
+
+    // Backups Collection
+    match /backups/{backupId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAuthenticated() && isAllowedAdmin();
+    }
+
+    // Harvest Records Collection
+    match /harvest_records/{recordId} {
+      // Owner, Admin, or logged in user can read
+      allow read: if isAuthenticated();
+      
+      // ONLY the record owner can create, update, or delete!
+      // Admin and viewers are strictly READ-ONLY on other users' data.
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+  }
+}

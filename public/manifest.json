@@ -1,0 +1,49 @@
+{
+  "short_name": "Sổ Tay Cạo Mủ",
+  "name": "SỔ TAY CẠO MỦ - Quản Lý & Tính Tiền Mủ Cao Su",
+  "description": "Sổ tay quản lý và tính tiền mủ cao su hằng ngày, tự động cộng dồn theo chu kỳ 10 ngày, báo cáo tháng và tổng kết năm.",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "type": "image/png",
+      "sizes": "180x180",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/android-chrome-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "background_color": "#047857",
+  "theme_color": "#047857",
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["productivity", "finance", "business"]
+}
