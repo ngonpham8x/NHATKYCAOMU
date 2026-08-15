@@ -158,6 +158,22 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({
 
   const farmSummaries = Array.from(farmSummaryMap.values());
 
+  // Worker labels such as "Thợ Cạo ..." are not separate farms. Count only
+  // actual farm names when deciding whether to show the farm breakdown.
+  const isTapperName = (name: string) => /^thợ\s+cạo\b/i.test(name.trim());
+  const actualFarmNames = new Set<string>();
+  const primaryFarmName = (settings.rubberFieldName || '').trim();
+  if (primaryFarmName && !isTapperName(primaryFarmName)) {
+    actualFarmNames.add(primaryFarmName.toLocaleLowerCase());
+  }
+  farmSummaries.forEach((summary) => {
+    const name = summary.farmName.trim();
+    if (name && !isTapperName(name)) {
+      actualFarmNames.add(name.toLocaleLowerCase());
+    }
+  });
+  const shouldShowFarmBreakdown = actualFarmNames.size > 1;
+
   const sortedRecords = [...records].sort((a, b) => b.date.localeCompare(a.date));
 
   const handleSaveAndSelectCustomFarm = () => {
@@ -396,11 +412,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({
             </div>
 
             {/* Breakdown per farm */}
-            {/* A single-farm owner does not need a per-farm breakdown. Keep
-                this whole block hidden until records contain at least two
-                distinct farm/tapper names; adding a second farm later makes
-                it appear automatically. */}
-            {farmSummaries.length > 1 && (
+            {/* A single real farm may still have a worker label in records.
+                Show this block only when there are at least two real farms. */}
+            {shouldShowFarmBreakdown && (
               <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-2 text-left shadow-2xs">
                 <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-1.5">
                   <span className="text-[11px] font-black text-emerald-950 dark:text-emerald-300 uppercase tracking-wider flex items-center space-x-1">
