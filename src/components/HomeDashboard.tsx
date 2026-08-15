@@ -390,7 +390,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         {/* Card 6: Total Tapping Days */}
         <div 
           onClick={openAllDaysDetail}
-          className="col-span-2 md:col-span-1 bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-xs flex flex-col justify-between hover:shadow-md hover:border-blue-500 active:scale-98 transition cursor-pointer group"
+          className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-xs flex flex-col justify-between hover:shadow-md hover:border-blue-500 active:scale-98 transition cursor-pointer group"
           title="Nhấn để xem chi tiết dạng thẻ Mobile"
         >
           <div className="flex items-center justify-between text-gray-500 dark:text-gray-400 mb-2">

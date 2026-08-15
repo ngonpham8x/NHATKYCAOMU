@@ -34,6 +34,7 @@ interface SettingsTabProps {
   onSaveSettings: (settings: Settings) => void;
   records: HarvestRecord[];
   onSetRecords: (records: HarvestRecord[]) => void;
+  onRestoreRecords?: (records: HarvestRecord[], settings?: Settings) => Promise<void>;
   canInstallPWA?: boolean;
   onInstallPWA: () => void;
   currentUser?: UserProfile;
@@ -45,6 +46,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onSaveSettings,
   records,
   onSetRecords,
+  onRestoreRecords,
   canInstallPWA = false,
   onInstallPWA,
   currentUser,
@@ -100,11 +102,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
   const [statusNotification, setStatusNotification] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
   const [isSyncingJson, setIsSyncingJson] = useState(false);
+  const [largeBackupNotice, setLargeBackupNotice] = useState<{ title: string; message: string } | null>(null);
 
   const notifyStatus = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
     setStatusNotification({ type, msg });
     onNotify?.(msg, type);
     setTimeout(() => setStatusNotification(null), 4000);
+  };
+
+  const showBackupSuccess = (title: string, message: string) => {
+    setLargeBackupNotice({ title, message });
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -297,7 +304,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const handleExportJSON = () => {
     try {
       exportToJSON(records, settings);
+      const message = `Đã tạo file sao lưu gồm ${records.length} ngày cạo. File được tải về thiết bị của bạn.`;
       notifyStatus('Sao lưu dữ liệu ra file JSON thành công!', 'success');
+      showBackupSuccess('ĐÃ SAO LƯU THÀNH CÔNG', message);
     } catch (e) {
       notifyStatus('Lỗi khi sao lưu dữ liệu!', 'error');
     }
@@ -316,7 +325,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     setIsSyncingJson(true);
     try {
       const backupId = await createDatabaseBackup(currentUser.uid, currentUser.email, records, settings);
+      const message = `Đã đồng bộ ${records.length} ngày cạo lên tài khoản Google. Mã sao lưu: ${backupId}`;
       notifyStatus(`Đồng bộ JSON lên web thành công (${records.length} ngày). Mã sao lưu: ${backupId}`, 'success');
+      showBackupSuccess('ĐÃ ĐỒNG BỘ LÊN WEB', message);
     } catch (err) {
       console.error('Cloud JSON sync failed:', err);
       const code = err && typeof err === 'object' && 'code' in err ? String((err as { code?: unknown }).code) : '';
@@ -335,11 +346,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
     try {
       const result = await importFromJSON(file);
-      onSetRecords(result.records);
-      if (result.settings) {
-        onSaveSettings(result.settings);
+      if (onRestoreRecords) {
+        await onRestoreRecords(result.records, result.settings);
+      } else {
+        onSetRecords(result.records);
+        if (result.settings) {
+          onSaveSettings(result.settings);
+        }
       }
+      const message = `Đã khôi phục ${result.records.length} ngày cạo và cập nhật dữ liệu trên thiết bị${currentUser ? ' và web' : ''}.`;
       notifyStatus('Khôi phục dữ liệu thành công!', 'success');
+      showBackupSuccess('ĐÃ KHÔI PHỤC THÀNH CÔNG', message);
     } catch (err) {
       notifyStatus(err instanceof Error ? err.message : 'Lỗi khi đọc file khôi phục', 'error');
     }
@@ -390,6 +407,34 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           'bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border border-emerald-300'
         }`}>
           <span>{statusNotification.msg}</span>
+        </div>
+      )}
+
+      {largeBackupNotice && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="backup-success-title"
+        >
+          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-gray-800 p-6 text-center shadow-2xl border-2 border-emerald-400 animate-fade-in">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/60">
+              <CheckCircle className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <h3 id="backup-success-title" className="text-lg font-black text-emerald-800 dark:text-emerald-300">
+              {largeBackupNotice.title}
+            </h3>
+            <p className="mt-2 text-sm font-medium leading-relaxed text-gray-600 dark:text-gray-300">
+              {largeBackupNotice.message}
+            </p>
+            <button
+              type="button"
+              onClick={() => setLargeBackupNotice(null)}
+              className="mt-5 w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-black text-white shadow-md transition hover:bg-emerald-800"
+            >
+              Đã hiểu
+            </button>
+          </div>
         </div>
       )}
 
@@ -875,10 +920,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             >
               <div className="flex items-center space-x-2 font-bold text-teal-900 dark:text-teal-300 text-sm">
                 <Upload className="w-4 h-4" />
-                <span>Khôi phục dữ liệu từ file JSON</span>
+                <span>Khôi phục JSON lên thiết bị & web</span>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Chọn file JSON sao lưu trước đó để khôi phục nhật ký cạo mủ.
+                Chọn file JSON để thay thế nhật ký trên thiết bị và tài khoản Google đang đăng nhập.
               </p>
             </button>
           </div>

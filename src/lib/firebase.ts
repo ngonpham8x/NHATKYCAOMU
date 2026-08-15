@@ -21,6 +21,7 @@ import {
   getDoc, 
   getDocs, 
   setDoc, 
+  writeBatch,
   addDoc, 
   updateDoc, 
   deleteDoc, 
@@ -694,6 +695,63 @@ export async function saveRecordToFirestore(
 
   await setDoc(docRef, payload, { merge: true });
   return recordDocId;
+}
+
+/**
+ * Replace the signed-in user's cloud journal with an imported JSON snapshot.
+ * The operation is chunked so it also works when a journal contains more than
+ * Firestore's 500-write batch limit.
+ */
+export async function replaceUserRecordsInFirestore(
+  records: HarvestRecord[],
+  user: UserProfile
+): Promise<HarvestRecord[]> {
+  const recordsCol = collection(db, 'harvest_records');
+  const existing = await getDocs(query(recordsCol, where('userId', '==', user.uid)));
+  const usedIds = new Set<string>();
+  const recordsWithIds = records.map((record) => {
+    let id = record.id && !record.id.startsWith('sample-') ? record.id : doc(recordsCol).id;
+    if (usedIds.has(id)) id = doc(recordsCol).id;
+    usedIds.add(id);
+    return { ...record, id };
+  });
+
+  const operations: Array<{ type: 'delete' | 'set'; ref: ReturnType<typeof doc>; data?: Record<string, unknown> }> = [];
+  existing.forEach((snapshot) => operations.push({ type: 'delete', ref: snapshot.ref }));
+
+  recordsWithIds.forEach((record) => {
+    operations.push({
+      type: 'set',
+      ref: doc(db, 'harvest_records', record.id),
+      data: {
+        id: record.id,
+        userId: user.uid,
+        userEmail: user.email,
+        date: record.date,
+        time: record.time || '05:30',
+        farmName: record.farmName || '',
+        degreeLatex: record.degreeLatex,
+        cupLatex: record.cupLatex,
+        scrapLatex: record.scrapLatex || { weight: 0, pricePerKg: 0, total: 0 },
+        dailyTotal: record.dailyTotal,
+        cumulativeTotal: record.cumulativeTotal || 0,
+        note: record.note || '',
+        createdAt: record.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  });
+
+  for (let offset = 0; offset < operations.length; offset += 450) {
+    const batch = writeBatch(db);
+    operations.slice(offset, offset + 450).forEach((operation) => {
+      if (operation.type === 'delete') batch.delete(operation.ref);
+      else batch.set(operation.ref, operation.data || {}, { merge: true });
+    });
+    await batch.commit();
+  }
+
+  return recordsWithIds;
 }
 
 /**

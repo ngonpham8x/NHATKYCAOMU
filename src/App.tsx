@@ -18,6 +18,7 @@ import {
   syncUserProfile, 
   subscribeToUserRecords, 
   saveRecordToFirestore, 
+  replaceUserRecordsInFirestore,
   deleteRecordFromFirestore, 
   saveUserSettingsToFirestore, 
   fetchAllUsersForAdmin, 
@@ -326,6 +327,36 @@ export default function App() {
     }
   };
 
+  // Restore a JSON snapshot locally and replace the signed-in user's cloud journal.
+  const handleRestoreRecords = async (restoredRecords: HarvestRecord[], restoredSettings?: Settings) => {
+    if (isReadOnlyMode) {
+      throw new Error('Tài khoản đang ở chế độ chỉ xem, không thể khôi phục dữ liệu.');
+    }
+
+    const effectiveSettings = restoredSettings
+      ? { ...DEFAULT_SETTINGS, ...restoredSettings }
+      : settingsRef.current;
+    const recalculated = calculateCumulativeTotals(restoredRecords, effectiveSettings);
+
+    settingsRef.current = effectiveSettings;
+    rawRecordsRef.current = recalculated;
+    setSettings(effectiveSettings);
+    setRecords(recalculated);
+    saveSettings(effectiveSettings);
+    saveRecords(recalculated, effectiveSettings);
+
+    if (currentUser) {
+      const persistedRecords = await replaceUserRecordsInFirestore(recalculated, currentUser);
+      const persistedCalculated = calculateCumulativeTotals(persistedRecords, effectiveSettings);
+      rawRecordsRef.current = persistedCalculated;
+      setRecords(persistedCalculated);
+      saveRecords(persistedCalculated, effectiveSettings);
+      if (restoredSettings) {
+        await saveUserSettingsToFirestore(currentUser.uid, effectiveSettings);
+      }
+    }
+  };
+
   // Handler to save or update a record
   const handleSaveRecord = async (newRecord: HarvestRecord) => {
     if (isReadOnlyMode) {
@@ -611,6 +642,7 @@ export default function App() {
               onSaveSettings={handleUpdateSettings}
               records={records}
               onSetRecords={(recs) => setRecords(recs)}
+              onRestoreRecords={handleRestoreRecords}
               canInstallPWA={canInstallPWA}
               onInstallPWA={handleInstallPWA}
               currentUser={currentUser}
