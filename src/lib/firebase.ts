@@ -38,9 +38,17 @@ import { HarvestRecord, Settings } from '../types';
 
 // Environment values take precedence so production credentials stay outside Git.
 // The JSON file is retained only as a local-preview fallback.
+// When the production PWA runs on Vercel, keep Firebase's auth helper on the
+// same origin. Safari/iOS blocks the cross-origin storage that redirect auth
+// otherwise needs. Vercel transparently proxies /__/auth/* to Firebase below.
+const productionAuthDomain = typeof window !== 'undefined'
+  && window.location.hostname === 'nhatkycaomu.vercel.app'
+  ? window.location.hostname
+  : firebaseAppletConfig.authDomain;
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseAppletConfig.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseAppletConfig.authDomain,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || productionAuthDomain,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseAppletConfig.projectId,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseAppletConfig.storageBucket,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseAppletConfig.messagingSenderId,

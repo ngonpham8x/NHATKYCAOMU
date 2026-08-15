@@ -1,6 +1,6 @@
 // Bump this whenever the authentication/runtime shell changes. iOS home-screen
 // apps can keep an older service-worker cache much longer than Safari tabs.
-const CACHE_NAME = 'so-tay-cao-mu-v11';
+const CACHE_NAME = 'so-tay-cao-mu-v12';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -48,6 +48,9 @@ self.addEventListener('fetch', (event) => {
   try {
     const requestUrl = new URL(event.request.url);
     if (requestUrl.protocol !== 'http:' && requestUrl.protocol !== 'https:') return;
+    // Firebase's same-origin auth helper must always be fetched from the
+    // network; caching its handler/iframe can preserve a stale OAuth state.
+    if (requestUrl.pathname.startsWith('/__/auth/') || requestUrl.pathname.startsWith('/__/firebase/')) return;
   } catch {
     return;
   }
