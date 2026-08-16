@@ -42,8 +42,13 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       : [];
   }, [settings?.farmsList]);
 
+  // The primary farm name is the default when the owner has not created a
+  // separate farm/tapper choice yet. This keeps single-farm entry one-click
+  // while preserving the list for multi-farm accounts.
+  const defaultFarmName = (settings?.rubberFieldName || '').trim() || farmsList[0] || '';
+
   const [farmName, setFarmName] = useState<string>(
-    initialFarmName || farmsList[0] || ''
+    initialFarmName || defaultFarmName
   );
   const [isAddingNewFarm, setIsAddingNewFarm] = useState<boolean>(false);
   const [newFarmInput, setNewFarmInput] = useState<string>('');
@@ -97,7 +102,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       if (editingRecord) {
         setDate(editingRecord.date || getTodayDateStr());
         setTime(editingRecord.time || '05:30');
-        setFarmName(editingRecord.farmName || farmsList[0] || '');
+        setFarmName(editingRecord.farmName || defaultFarmName);
         setDegreeWeight(editingRecord.degreeLatex?.weight ? editingRecord.degreeLatex.weight.toString() : '');
         setDegreeValue(editingRecord.degreeLatex?.degree ? editingRecord.degreeLatex.degree.toString() : '');
         setDegreePrice(editingRecord.degreeLatex?.pricePerDegree ? editingRecord.degreeLatex.pricePerDegree.toString() : (settings?.defaultDegreePrice || 350).toString());
@@ -111,7 +116,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       } else {
         setDate(getTodayDateStr());
         setTime('05:30');
-        setFarmName(initialFarmName || farmsList[0] || '');
+        setFarmName(initialFarmName || defaultFarmName);
         setDegreeWeight('');
         setDegreeValue('');
         setDegreePrice((settings?.defaultDegreePrice || 350).toString());
@@ -127,7 +132,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       setNewFarmInput('');
       setValidationError('');
     }
-  }, [isOpen, editingRecord?.id, initialFarmName]);
+  }, [isOpen, editingRecord?.id, initialFarmName, defaultFarmName]);
 
   // Check if date + farm combination already exists (when creating new or changing date/farm)
   useEffect(() => {
@@ -212,7 +217,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
     }
 
     // Resolve final farm name (whether selected or currently typed in new farm input)
-    let finalFarmName = farmName.trim();
+    let finalFarmName = farmName.trim() || defaultFarmName;
     if (isAddingNewFarm && newFarmInput.trim()) {
       finalFarmName = newFarmInput.trim();
       if (!farmsList.includes(finalFarmName)) {
