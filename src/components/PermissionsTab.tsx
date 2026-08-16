@@ -37,7 +37,6 @@ import {
   ROOT_ADMIN_EMAILS 
 } from '../lib/firebase';
 import { HarvestRecord, Settings } from '../types';
-import { exportToExcel } from '../utils/export';
 
 import { ConfirmModal } from './ConfirmModal';
 
@@ -181,6 +180,7 @@ export const PermissionsTab: React.FC<PermissionsTabProps> = ({ currentUser, rec
 
       // Auto export full Excel report & backup snapshot for Garden Owner upon revocation
       if (records && records.length > 0 && settings) {
+        const { exportToExcel } = await import('../utils/export');
         await exportToExcel(records, `Bao_Cao_Tudong_ThuHoi_Quyen_${emailToRemove.replace(/[^a-zA-Z0-9]/g, '_')}`, settings);
       }
       if (currentUser && records && settings) {

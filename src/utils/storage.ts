@@ -4,7 +4,6 @@ import { calculateCumulativeTotals, getTodayDateStr } from './calculations';
 // Centralized LocalStorage Constants
 export const RECORDS_STORAGE_KEY = 'rubber_latex_records_v1';
 export const SETTINGS_STORAGE_KEY = 'rubber_latex_settings_v1';
-export const USER_PROFILE_CACHE_PREFIX = 'cached_user_profile_';
 
 export const DEFAULT_SETTINGS: Settings = {
   defaultDegreePrice: 350, // 350 đ/độ/kg

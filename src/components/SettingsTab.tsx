@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import { Settings, HarvestRecord } from '../types';
 import { exportToJSON, importFromJSON, generateSampleData } from '../utils/storage';
-import { exportToExcel } from '../utils/export';
 import { createDatabaseBackup, UserProfile } from '../lib/firebase';
 import { formatVND, parseVietnamesePrice } from '../utils/calculations';
 import { ConfirmModal } from './ConfirmModal';
@@ -290,6 +289,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
     // Auto export full Excel report & backup snapshot for Garden Owner upon revocation
     try {
+      const { exportToExcel } = await import('../utils/export');
       await exportToExcel(records, `Bao_Cao_Tudong_ThuHoi_Quyen_${emailToRemove.replace(/[^a-zA-Z0-9]/g, '_')}`, settings);
       if (currentUser) {
         await createDatabaseBackup(currentUser.uid, currentUser.email, records, settings);

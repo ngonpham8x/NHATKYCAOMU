@@ -23,7 +23,6 @@ import {
   getDocs, 
   setDoc, 
   writeBatch,
-  addDoc, 
   updateDoc, 
   deleteDoc, 
   query, 
@@ -191,11 +190,16 @@ export async function loginWithGoogle() {
 
   try {
     const loginPromise = signInWithPopup(auth, googleProvider);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Quá thời gian kết nối Google. Vui lòng bấm đăng nhập lại!')), 30000)
+      timeoutId = setTimeout(() => reject(new Error('Quá thời gian kết nối Google. Vui lòng bấm đăng nhập lại!')), 30000)
     );
-    const result = (await Promise.race([loginPromise, timeoutPromise])) as any;
-    return result.user;
+    try {
+      const result = (await Promise.race([loginPromise, timeoutPromise])) as any;
+      return result.user;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
   } catch (error: any) {
     const canRetryWithRedirect = canFallbackToRedirect && (
       error?.code === 'auth/popup-blocked' ||
@@ -311,7 +315,7 @@ export function subscribeToEmailAccessPermission(
   onUpdate: (result: PermissionCheckResult) => void
 ) {
   const safeUpdate = (res: PermissionCheckResult) => {
-    setTimeout(() => onUpdate(res), 0);
+    onUpdate(res);
   };
 
   const lowerEmail = email.toLowerCase().trim();
@@ -689,7 +693,8 @@ export async function updateUserSubEmails(userId: string, subEmails: string[]) {
  */
 export function subscribeToUserRecords(
   targetUserId: string,
-  onRecordsUpdated: (records: HarvestRecord[]) => void
+  onRecordsUpdated: (records: HarvestRecord[]) => void,
+  onError?: (error: Error) => void
 ) {
   const recordsCol = collection(db, 'harvest_records');
   const q = query(recordsCol, where('userId', '==', targetUserId));
@@ -716,9 +721,10 @@ export function subscribeToUserRecords(
 
     // Sort descending by date
     recordsList.sort((a, b) => b.date.localeCompare(a.date));
-    setTimeout(() => onRecordsUpdated(recordsList), 0);
+    onRecordsUpdated(recordsList);
   }, (error) => {
     console.error('Error subscribing to harvest_records:', error);
+    onError?.(error instanceof Error ? error : new Error('Không thể đồng bộ nhật ký từ Firestore.'));
   });
 }
 
@@ -735,8 +741,16 @@ export async function saveRecordToFirestore(
     : doc(recordsCol).id;
 
   const docRef = doc(db, 'harvest_records', recordDocId);
+  await setDoc(docRef, buildHarvestRecordPayload(record, recordDocId, user), { merge: true });
+  return recordDocId;
+}
 
-  const payload = {
+function buildHarvestRecordPayload(
+  record: HarvestRecord,
+  recordDocId: string,
+  user: UserProfile
+): Record<string, unknown> {
+  return {
     id: recordDocId,
     userId: user.uid,
     userEmail: user.email,
@@ -752,9 +766,6 @@ export async function saveRecordToFirestore(
     createdAt: record.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-
-  await setDoc(docRef, payload, { merge: true });
-  return recordDocId;
 }
 
 /**
@@ -783,22 +794,7 @@ export async function replaceUserRecordsInFirestore(
     operations.push({
       type: 'set',
       ref: doc(db, 'harvest_records', record.id),
-      data: {
-        id: record.id,
-        userId: user.uid,
-        userEmail: user.email,
-        date: record.date,
-        time: record.time || '05:30',
-        farmName: record.farmName || '',
-        degreeLatex: record.degreeLatex,
-        cupLatex: record.cupLatex,
-        scrapLatex: record.scrapLatex || { weight: 0, pricePerKg: 0, total: 0 },
-        dailyTotal: record.dailyTotal,
-        cumulativeTotal: record.cumulativeTotal || 0,
-        note: record.note || '',
-        createdAt: record.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
+      data: buildHarvestRecordPayload(record, record.id, user),
     });
   });
 

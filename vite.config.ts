@@ -18,5 +18,25 @@ export default defineConfig(() => {
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
+    build: {
+      // Firestore's official browser SDK is intentionally kept in its own
+      // cacheable vendor chunk; allow its known ~600 kB minified size.
+      chunkSizeWarningLimit: 650,
+      rollupOptions: {
+        output: {
+          // Keep Firebase and icon code cacheable and out of the initial app
+          // chunk. Reports/charts are already lazy-loaded by their tabs.
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            if (id.includes('/firebase/auth/')) return 'firebase-auth';
+            if (id.includes('/firebase/firestore/')) return 'firebase-firestore';
+            if (id.includes('/firebase/app/')) return 'firebase-app';
+            if (id.includes('/firebase/')) return 'firebase-vendor';
+            if (id.includes('/lucide-react/')) return 'icons-vendor';
+            return undefined;
+          },
+        },
+      },
+    },
   };
 });

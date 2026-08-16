@@ -11,7 +11,7 @@ import {
   Share2
 } from 'lucide-react';
 import { HarvestRecord, Settings } from '../types';
-import { formatZaloShareText, exportToPDF, exportToExcel } from '../utils/export';
+import { formatZaloShareText } from '../utils/share';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -109,6 +109,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   const handleExportPDF = async () => {
     setIsPdfExporting(true);
     try {
+      const { exportToPDF } = await import('../utils/export');
       await exportToPDF(records, settings, title);
     } catch (err) {
       console.error(err);
@@ -118,6 +119,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   };
 
   const handleExportExcel = async () => {
+    const { exportToExcel } = await import('../utils/export');
     await exportToExcel(records, title.replace(/[^a-zA-Z0-9]/g, '_'));
   };
 

@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { HarvestRecord, Settings } from '../types';
 import { formatDateVN, formatVND, formatWeight, formatDegree, getCycleInfo } from '../utils/calculations';
-import { exportToPDF, exportToExcel } from '../utils/export';
 import { hasMultipleActualFarms } from '../utils/farmDisplay';
 import { ShareModal } from './ShareModal';
 import { ConfirmModal } from './ConfirmModal';
@@ -257,6 +256,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({
   const handleExportPDF = async () => {
     setIsExportingPdf(true);
     try {
+      const { exportToPDF } = await import('../utils/export');
       await exportToPDF(records, settings, title);
     } catch (e) {
       console.error(e);
@@ -267,6 +267,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({
 
   // Export Excel
   const handleExportExcel = async () => {
+    const { exportToExcel } = await import('../utils/export');
     await exportToExcel(records, title.replace(/[^a-zA-Z0-9]/g, '_'), settings);
   };
 

@@ -90,6 +90,16 @@ export default function App() {
   // Refs for optimized real-time subscriptions without re-subscribing on settings update
   const settingsRef = useRef<Settings>(settings);
   const rawRecordsRef = useRef<HarvestRecord[]>(records);
+  const bulkRecordsMutationRef = useRef(0);
+  const recordsSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  // Serialize cloud mutations so a slow save cannot finish after a later
+  // delete/restore and recreate data that the user already removed.
+  const queueRecordsSync = <T,>(operation: () => Promise<T>): Promise<T> => {
+    const queued = recordsSyncQueueRef.current.catch(() => undefined).then(operation);
+    recordsSyncQueueRef.current = queued.then(() => undefined, () => undefined);
+    return queued;
+  };
 
   useEffect(() => {
     settingsRef.current = settings;
@@ -171,6 +181,7 @@ export default function App() {
   // Firebase Auth Listener with Persistent Session & Real-time Permission Check
   useEffect(() => {
     let unsubPermission: (() => void) | null = null;
+    let authRunId = 0;
 
     // Safety timer: allow redirect OAuth and the first Firestore permission
     // check to finish before showing the login screen.
@@ -179,75 +190,87 @@ export default function App() {
     }, 15000);
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser: User | null) => {
-      setTimeout(async () => {
-        if (unsubPermission) {
-          unsubPermission();
-          unsubPermission = null;
-        }
+      const runId = ++authRunId;
+      if (unsubPermission) {
+        unsubPermission();
+        unsubPermission = null;
+      }
 
-        if (!firebaseUser) {
-          setCurrentUser(null);
-          setUnauthorizedEmail(null);
-          setRecords([]);
-          rawRecordsRef.current = [];
-          setActiveViewingUserId('');
-          setAuthLoading(false);
-          clearTimeout(safetyTimer);
-          return;
-        }
+      if (!firebaseUser) {
+        setCurrentUser(null);
+        setUnauthorizedEmail(null);
+        setRecords([]);
+        rawRecordsRef.current = [];
+        setActiveViewingUserId('');
+        setAllUsers([]);
+        setAuthLoading(false);
+        clearTimeout(safetyTimer);
+        return;
+      }
 
-        const email = firebaseUser.email || '';
+      const email = firebaseUser.email || '';
 
-        // Subscribe to real-time permission changes.
-        unsubPermission = subscribeToEmailAccessPermission(email, async (permissionInfo) => {
-          try {
-            if (!permissionInfo.isAllowed) {
-              setUnauthorizedEmail(email);
-              setAuthError(null);
-              setCurrentUser(null);
-              setAuthLoading(false);
-              clearTimeout(safetyTimer);
-              return;
-            }
-
-            setUnauthorizedEmail(null);
+      // Subscribe to real-time permission changes.
+      unsubPermission = subscribeToEmailAccessPermission(email, async (permissionInfo) => {
+        if (runId !== authRunId) return;
+        try {
+          if (!permissionInfo.isAllowed) {
+            setUnauthorizedEmail(email);
             setAuthError(null);
-
-            // If Root Admin, ensure record exists in allowed_users (non-blocking)
-            if (permissionInfo.isAdmin) {
-              ensureRootAdminAllowed(firebaseUser).catch(console.error);
-            }
-
-            // Sync user profile & custom settings
-            const profile = await syncUserProfile(firebaseUser, permissionInfo, DEFAULT_SETTINGS);
-            setCurrentUser(profile);
-
-            // If sub-viewer, force viewing active user ID to parent owner's UID!
-            if (permissionInfo.isSubViewer && permissionInfo.parentUserId) {
-              setActiveViewingUserId(permissionInfo.parentUserId);
-            } else {
-              setActiveViewingUserId(profile.uid);
-            }
-
-            if (profile.settings) {
-              setSettings(profile.settings);
-            }
-
-            // If Admin, fetch all registered users for workspace switcher (non-blocking)
-            if (permissionInfo.isAdmin) {
-              fetchAllUsersForAdmin().then(setAllUsers).catch(console.error);
-            }
-          } catch (err: unknown) {
-            console.error('Error processing user login profile:', err);
-            const firebaseError = err as { code?: string; message?: string };
-            setAuthError(`Không thể tạo hoặc tải hồ sơ Firestore (${firebaseError.code || firebaseError.message || 'unknown-error'}). Kiểm tra Firestore Database và Rules rồi thử lại.`);
             setCurrentUser(null);
-          } finally {
+            setRecords([]);
+            rawRecordsRef.current = [];
+            setActiveViewingUserId('');
+            setAuthLoading(false);
+            clearTimeout(safetyTimer);
+            return;
+          }
+
+          setUnauthorizedEmail(null);
+          setAuthError(null);
+
+          // If Root Admin, ensure record exists in allowed_users (non-blocking)
+          if (permissionInfo.isAdmin) {
+            ensureRootAdminAllowed(firebaseUser).catch(console.error);
+          }
+
+          // Sync user profile & custom settings
+          const profile = await syncUserProfile(firebaseUser, permissionInfo, DEFAULT_SETTINGS);
+          if (runId !== authRunId) return;
+          setCurrentUser(profile);
+
+          // If sub-viewer, force viewing active user ID to parent owner's UID!
+          setActiveViewingUserId(
+            permissionInfo.isSubViewer && permissionInfo.parentUserId
+              ? permissionInfo.parentUserId
+              : profile.uid
+          );
+
+          if (profile.settings) {
+            setSettings(profile.settings);
+          }
+
+          // If Admin, fetch all registered users for workspace switcher (non-blocking)
+          if (permissionInfo.isAdmin) {
+            fetchAllUsersForAdmin()
+              .then((users) => {
+                if (runId === authRunId) setAllUsers(users);
+              })
+              .catch(console.error);
+          }
+        } catch (err: unknown) {
+          if (runId !== authRunId) return;
+          console.error('Error processing user login profile:', err);
+          const firebaseError = err as { code?: string; message?: string };
+          setAuthError(`Không thể tạo hoặc tải hồ sơ Firestore (${firebaseError.code || firebaseError.message || 'unknown-error'}). Kiểm tra Firestore Database và Rules rồi thử lại.`);
+          setCurrentUser(null);
+        } finally {
+          if (runId === authRunId) {
             setAuthLoading(false);
             clearTimeout(safetyTimer);
           }
-        });
-      }, 0);
+        }
+      });
     });
 
     // PWA Install prompt listener (Only outside iframe environment in standalone mode)
@@ -285,9 +308,11 @@ export default function App() {
     }
 
     return () => {
+      authRunId += 1;
       clearTimeout(safetyTimer);
       unsubscribeAuth();
       if (unsubPermission) unsubPermission();
+      pwaPromptHandler = null;
       if (!isIframe && typeof window !== 'undefined') {
         try {
           window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -299,8 +324,15 @@ export default function App() {
   // Real-time Harvest Records Subscription for Active Viewing User (Only re-subscribes on user ID change)
   useEffect(() => {
     if (!activeViewingUserId) {
+      rawRecordsRef.current = [];
+      setRecords([]);
       return;
     }
+
+    // Clear the previous workspace immediately so records from another user
+    // never remain visible while the new Firestore snapshot is loading.
+    rawRecordsRef.current = [];
+    setRecords([]);
 
     const unsubscribe = subscribeToUserRecords(activeViewingUserId, (rawRecords) => {
       // Firestore is the source of truth for a signed-in workspace. An empty
@@ -310,6 +342,9 @@ export default function App() {
       const recalculated = calculateCumulativeTotals(rawRecords, settingsRef.current);
       setRecords(recalculated);
       saveRecords(recalculated, settingsRef.current);
+    }, (error) => {
+      console.error('Harvest records sync failed:', error);
+      showToast('Không thể đồng bộ nhật ký từ đám mây. Kiểm tra mạng rồi tải lại.', 'error');
     });
 
     return () => unsubscribe();
@@ -322,11 +357,62 @@ export default function App() {
 
   // Handler to update settings
   const handleUpdateSettings = async (newSettings: Settings) => {
+    const previousSettings = settingsRef.current;
+    settingsRef.current = newSettings;
     setSettings(newSettings);
     saveSettings(newSettings);
     if (currentUser) {
-      await saveUserSettingsToFirestore(currentUser.uid, newSettings);
+      try {
+        await saveUserSettingsToFirestore(currentUser.uid, newSettings);
+      } catch (err) {
+        console.error('Error syncing settings to Firestore:', err);
+        settingsRef.current = previousSettings;
+        setSettings(previousSettings);
+        saveSettings(previousSettings);
+        showToast('Không thể đồng bộ cài đặt lên đám mây. Đã khôi phục cài đặt trước đó.', 'error');
+      }
     }
+  };
+
+  // Single entry point for bulk record changes from settings/farm management.
+  // This keeps local state, localStorage and Firestore in sync for imports,
+  // clearing data, sample data and historical farm-name updates.
+  const handleSetRecords = (nextRecords: HarvestRecord[]) => {
+    if (isReadOnlyMode) {
+      showToast('Tài khoản hiện chỉ có quyền xem, không thể thay đổi nhật ký.', 'warning');
+      return;
+    }
+
+    const previousRaw = [...(rawRecordsRef.current.length > 0 ? rawRecordsRef.current : records)];
+    const mutationId = ++bulkRecordsMutationRef.current;
+    const recalculated = calculateCumulativeTotals(nextRecords, settingsRef.current);
+    rawRecordsRef.current = recalculated;
+    setRecords(recalculated);
+    saveRecords(recalculated, settingsRef.current);
+
+    if (!currentUser) {
+      showToast('Đã cập nhật nhật ký trên thiết bị.', 'success');
+      return;
+    }
+
+    void queueRecordsSync(() => replaceUserRecordsInFirestore(recalculated, currentUser))
+      .then((persistedRecords) => {
+        if (mutationId !== bulkRecordsMutationRef.current) return;
+        const persistedCalculated = calculateCumulativeTotals(persistedRecords, settingsRef.current);
+        rawRecordsRef.current = persistedCalculated;
+        setRecords(persistedCalculated);
+        saveRecords(persistedCalculated, settingsRef.current);
+        showToast('Đã cập nhật và đồng bộ nhật ký thành công.', 'success');
+      })
+      .catch((err) => {
+        if (mutationId !== bulkRecordsMutationRef.current) return;
+        console.error('Error syncing bulk record update:', err);
+        const restored = calculateCumulativeTotals(previousRaw, settingsRef.current);
+        rawRecordsRef.current = restored;
+        setRecords(restored);
+        saveRecords(restored, settingsRef.current);
+        showToast('Không thể đồng bộ thay đổi nhật ký lên đám mây.', 'error');
+      });
   };
 
   // Restore a JSON snapshot locally and replace the signed-in user's cloud journal.
@@ -335,6 +421,9 @@ export default function App() {
       throw new Error('Tài khoản đang ở chế độ chỉ xem, không thể khôi phục dữ liệu.');
     }
 
+    const previousRecords = [...(rawRecordsRef.current.length > 0 ? rawRecordsRef.current : records)];
+    const mutationId = ++bulkRecordsMutationRef.current;
+    const previousSettings = settingsRef.current;
     const effectiveSettings = restoredSettings
       ? { ...DEFAULT_SETTINGS, ...restoredSettings }
       : settingsRef.current;
@@ -348,13 +437,41 @@ export default function App() {
     saveRecords(recalculated, effectiveSettings);
 
     if (currentUser) {
-      const persistedRecords = await replaceUserRecordsInFirestore(recalculated, currentUser);
-      const persistedCalculated = calculateCumulativeTotals(persistedRecords, effectiveSettings);
-      rawRecordsRef.current = persistedCalculated;
-      setRecords(persistedCalculated);
-      saveRecords(persistedCalculated, effectiveSettings);
-      if (restoredSettings) {
-        await saveUserSettingsToFirestore(currentUser.uid, effectiveSettings);
+      try {
+        const persistedRecords = await queueRecordsSync(async () => {
+          const result = await replaceUserRecordsInFirestore(recalculated, currentUser);
+          if (restoredSettings) {
+            await saveUserSettingsToFirestore(currentUser.uid, effectiveSettings);
+          }
+          return result;
+        });
+        const persistedCalculated = calculateCumulativeTotals(persistedRecords, effectiveSettings);
+        rawRecordsRef.current = persistedCalculated;
+        setRecords(persistedCalculated);
+        saveRecords(persistedCalculated, effectiveSettings);
+      } catch (err) {
+        console.error('Error restoring records to Firestore:', err);
+        if (mutationId !== bulkRecordsMutationRef.current) throw err;
+        // A chunked replacement can fail after some batches have committed.
+        // Best-effort restore prevents another device from seeing a partial
+        // import when the final settings/records write reports an error.
+        try {
+          await queueRecordsSync(async () => {
+            await replaceUserRecordsInFirestore(previousRecords, currentUser);
+            if (restoredSettings) {
+              await saveUserSettingsToFirestore(currentUser.uid, previousSettings);
+            }
+          });
+        } catch (rollbackErr) {
+          console.error('Cloud rollback after restore failure also failed:', rollbackErr);
+        }
+        settingsRef.current = previousSettings;
+        rawRecordsRef.current = previousRecords;
+        setSettings(previousSettings);
+        setRecords(calculateCumulativeTotals(previousRecords, previousSettings));
+        saveSettings(previousSettings);
+        saveRecords(previousRecords, previousSettings);
+        throw err;
       }
     }
   };
@@ -366,8 +483,11 @@ export default function App() {
       return;
     }
 
+    const mutationId = ++bulkRecordsMutationRef.current;
+
     // Optimistic UI update for instant zero-lag UI response
     const currentList = rawRecordsRef.current.length > 0 ? rawRecordsRef.current : records;
+    const previousRaw = [...currentList];
     // Match by ID, or if new record without persistent ID, match date + farmName
     const existingIdx = currentList.findIndex((r) => 
       r.id === newRecord.id || 
@@ -389,7 +509,8 @@ export default function App() {
 
     if (currentUser) {
       try {
-        const savedDocId = await saveRecordToFirestore(newRecord, currentUser);
+        const savedDocId = await queueRecordsSync(() => saveRecordToFirestore(newRecord, currentUser));
+        if (mutationId !== bulkRecordsMutationRef.current) return;
         // Update ID if it was a new record with sample/local ID
         if (newRecord.id !== savedDocId) {
           const fixedRaw = rawRecordsRef.current.map((r) => 
@@ -404,8 +525,13 @@ export default function App() {
         }
         showToast('Đã lưu nhật ký cạo mủ thành công!', 'success');
       } catch (err) {
-        console.warn('Sync to Firestore notice:', err);
-        showToast('Đã lưu dữ liệu vào sổ cạo!', 'success');
+        if (mutationId !== bulkRecordsMutationRef.current) return;
+        console.error('Sync to Firestore failed:', err);
+        const restored = calculateCumulativeTotals(previousRaw, settingsRef.current);
+        rawRecordsRef.current = restored;
+        setRecords(restored);
+        saveRecords(restored, settingsRef.current);
+        showToast('Không thể đồng bộ nhật ký lên đám mây. Thay đổi đã được hoàn tác.', 'error');
       }
     } else {
       showToast('Đã lưu dữ liệu vào sổ cạo!', 'success');
@@ -451,6 +577,8 @@ export default function App() {
 
     if (!recordId) return;
 
+    const mutationId = ++bulkRecordsMutationRef.current;
+
     // Optimistic UI delete update: strictly delete matching ID only
     const currentList = rawRecordsRef.current.length > 0 ? rawRecordsRef.current : records;
     const previousRaw = [...currentList];
@@ -464,10 +592,12 @@ export default function App() {
       // `rec-*` IDs can be real Firestore document IDs from older saves, so
       // only generated `sample-*` records are local-only and must be skipped.
       if (currentUser && recordId && !recordId.startsWith('sample-')) {
-        await deleteRecordFromFirestore(recordId, currentUser.uid);
+        await queueRecordsSync(() => deleteRecordFromFirestore(recordId, currentUser.uid));
       }
+      if (mutationId !== bulkRecordsMutationRef.current) return;
       showToast('Đã xóa và đồng bộ dữ liệu thành công!', 'success');
     } catch (err) {
+      if (mutationId !== bulkRecordsMutationRef.current) return;
       console.error('Error deleting record from Firestore:', err);
       // Do not leave this device looking correct while the cloud still has
       // the record. Restore the previous state and report the sync failure.
@@ -599,7 +729,7 @@ export default function App() {
               onDeleteRecord={handleDeleteRecord}
               onNavigateToTab={setActiveTab}
               onUpdateSettings={handleUpdateSettings}
-              onSetRecords={(recs) => setRecords(recs)}
+              onSetRecords={handleSetRecords}
             />
           )}
 
@@ -653,7 +783,7 @@ export default function App() {
               settings={settings}
               onSaveSettings={handleUpdateSettings}
               records={records}
-              onSetRecords={(recs) => setRecords(recs)}
+              onSetRecords={handleSetRecords}
               onRestoreRecords={handleRestoreRecords}
               canInstallPWA={canInstallPWA}
               onInstallPWA={handleInstallPWA}

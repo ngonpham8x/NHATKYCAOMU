@@ -3,22 +3,30 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-// Helper to identify non-fatal cross-origin iframe security errors and React scheduler batching notices
-const isIgnoredError = (err: any): boolean => {
+// Ignore only browser noise known to be emitted by OAuth popups/embedded
+// browsers. Do not suppress generic SecurityError/CORS failures: those can
+// indicate a real login or data-sync problem and must remain visible.
+const isIgnoredError = (err: unknown): boolean => {
   if (!err) return false;
   try {
-    const str = `${typeof err === 'string' ? err : ''} ${err?.message || ''} ${err?.reason?.message || err?.reason || ''} ${err?.error?.message || err?.error || ''} ${err?.stack || ''}`;
+    const value = err as {
+      message?: unknown;
+      reason?: { message?: unknown } | unknown;
+      error?: { message?: unknown } | unknown;
+      stack?: unknown;
+    };
+    const str = `${typeof err === 'string' ? err : ''} ${value.message || ''} ${typeof value.reason === 'object' && value.reason !== null && 'message' in value.reason ? value.reason.message : value.reason || ''} ${typeof value.error === 'object' && value.error !== null && 'message' in value.error ? value.error.message : value.error || ''} ${value.stack || ''}`;
     const lower = str.toLowerCase();
     return (
-      lower.includes('cross-origin') ||
-      lower.includes('securityerror') ||
+      lower.includes('cross-origin-opener-policy policy would block window.closed') ||
+      lower.includes('cross-origin-opener-policy policy would block window.close') ||
       lower.includes('$$typeof') ||
       lower.includes('should not already be working') ||
-      lower.includes('blocked a frame') ||
+      lower.includes('blocked a frame with origin') ||
       lower.includes('named property')
     );
   } catch {
-    return true;
+    return false;
   }
 };
 
@@ -61,8 +69,7 @@ if (typeof window !== 'undefined') {
           return true;
         }
       } catch (e) {
-        try { event.preventDefault(); } catch (err) {}
-        return true;
+        return false;
       }
     },
     true
@@ -80,8 +87,7 @@ if (typeof window !== 'undefined') {
           return true;
         }
       } catch (e) {
-        try { event.preventDefault(); } catch (err) {}
-        return true;
+        return false;
       }
     },
     true
@@ -115,7 +121,7 @@ class GlobalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   handleReset = () => {
-    (this as any).setState({ hasError: false });
+    (this as Component<ErrorBoundaryProps, ErrorBoundaryState>).setState({ hasError: false });
   };
 
   render() {
@@ -151,7 +157,7 @@ class GlobalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
       );
     }
 
-    return (this as any).props.children;
+    return (this as Component<ErrorBoundaryProps, ErrorBoundaryState>).props.children;
   }
 }
 
