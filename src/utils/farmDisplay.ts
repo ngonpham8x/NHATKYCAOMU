@@ -14,9 +14,13 @@ export function isTapperName(name: string): boolean {
   return /^tho\s+cao\b/.test(normalized);
 }
 
+function isPlaceholderFarmName(name: string): boolean {
+  return /^\d+$/.test(name.trim());
+}
+
 function addFarmName(names: Set<string>, value?: string): void {
   const name = (value || '').trim();
-  if (!name || isTapperName(name)) return;
+  if (!name || isTapperName(name) || isPlaceholderFarmName(name)) return;
   names.add(name.toLocaleLowerCase());
 }
 

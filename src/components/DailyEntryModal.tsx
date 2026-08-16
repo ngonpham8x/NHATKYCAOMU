@@ -9,6 +9,7 @@ import {
   parseVietnamesePrice 
 } from '../utils/calculations';
 import { NumericInput } from './NumericInput';
+import { hasMultipleActualFarms } from '../utils/farmDisplay';
 
 interface DailyEntryModalProps {
   isOpen: boolean;
@@ -42,13 +43,13 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       : [];
   }, [settings?.farmsList]);
 
-  // The primary farm name is the default when the owner has not created a
-  // separate farm/tapper choice yet. This keeps single-farm entry one-click
-  // while preserving the list for multi-farm accounts.
-  const defaultFarmName = (settings?.rubberFieldName || '').trim() || farmsList[0] || '';
+  // A farm/tapper label is required only when the owner has multiple real
+  // farms. Single-farm entries intentionally keep this field blank.
+  const hasMultipleFarms = hasMultipleActualFarms(existingRecords, settings);
+  const defaultFarmName = hasMultipleFarms ? (initialFarmName || '') : '';
 
   const [farmName, setFarmName] = useState<string>(
-    initialFarmName || defaultFarmName
+    defaultFarmName
   );
   const [isAddingNewFarm, setIsAddingNewFarm] = useState<boolean>(false);
   const [newFarmInput, setNewFarmInput] = useState<string>('');
@@ -102,7 +103,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       if (editingRecord) {
         setDate(editingRecord.date || getTodayDateStr());
         setTime(editingRecord.time || '05:30');
-        setFarmName(editingRecord.farmName || defaultFarmName);
+        setFarmName(editingRecord.farmName || '');
         setDegreeWeight(editingRecord.degreeLatex?.weight ? editingRecord.degreeLatex.weight.toString() : '');
         setDegreeValue(editingRecord.degreeLatex?.degree ? editingRecord.degreeLatex.degree.toString() : '');
         setDegreePrice(editingRecord.degreeLatex?.pricePerDegree ? editingRecord.degreeLatex.pricePerDegree.toString() : (settings?.defaultDegreePrice || 350).toString());
@@ -116,7 +117,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       } else {
         setDate(getTodayDateStr());
         setTime('05:30');
-        setFarmName(initialFarmName || defaultFarmName);
+        setFarmName(defaultFarmName);
         setDegreeWeight('');
         setDegreeValue('');
         setDegreePrice((settings?.defaultDegreePrice || 350).toString());
@@ -132,7 +133,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       setNewFarmInput('');
       setValidationError('');
     }
-  }, [isOpen, editingRecord?.id, initialFarmName, defaultFarmName]);
+  }, [isOpen, editingRecord?.id, initialFarmName]);
 
   // Check if date + farm combination already exists (when creating new or changing date/farm)
   useEffect(() => {
@@ -217,7 +218,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
     }
 
     // Resolve final farm name (whether selected or currently typed in new farm input)
-    let finalFarmName = farmName.trim() || defaultFarmName;
+    let finalFarmName = farmName.trim();
     if (isAddingNewFarm && newFarmInput.trim()) {
       finalFarmName = newFarmInput.trim();
       if (!farmsList.includes(finalFarmName)) {
@@ -234,7 +235,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
       setNewFarmInput('');
     }
 
-    if (!finalFarmName) {
+    if (!finalFarmName && hasMultipleFarms) {
       triggerError('Vui lòng chọn hoặc thêm Tên Vườn/Thợ Cạo.');
       return;
     }
@@ -433,7 +434,7 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
                   </button>
                 </div>
               </div>
-            ) : (
+            ) : hasMultipleFarms ? (
               <div className="relative">
                 <select
                   id="select-farm-name"
@@ -451,9 +452,15 @@ export const DailyEntryModal: React.FC<DailyEntryModalProps> = ({
                   ))}
                 </select>
               </div>
+            ) : (
+              <div className="w-full px-3.5 py-2.5 rounded-xl border border-dashed border-amber-300 dark:border-amber-700/80 bg-white/70 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 text-sm font-bold">
+                Không phân loại vườn (để trống)
+              </div>
             )}
             <p className="text-[11px] text-amber-800 dark:text-amber-400 font-medium">
-              Chủ vườn chọn tên vườn/thợ cạo để tính riêng sản lượng tích lũy từng lô.
+              {hasMultipleFarms
+                ? 'Chủ vườn chọn tên vườn/thợ cạo để tính riêng sản lượng tích lũy từng lô.'
+                : 'Chủ vườn chỉ có một vườn nên không cần nhập tên; nhật ký sẽ để trống.'}
             </p>
           </div>
 

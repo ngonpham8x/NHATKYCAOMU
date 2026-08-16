@@ -214,7 +214,11 @@ export const Cycle10DaysTab: React.FC<Cycle10DaysTabProps> = ({
       id: existingRecordForDay ? existingRecordForDay.id : `rec-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       date: currentDayInfo.dateStr,
       time: harvestTime || '05:30',
-      farmName: existingRecordForDay?.farmName || settings.rubberFieldName || settings.farmsList?.[0] || 'Vườn Nhà',
+      farmName: existingRecordForDay?.farmName || (
+        shouldShowFarmLabels
+          ? settings.rubberFieldName || settings.farmsList?.[0] || ''
+          : ''
+      ),
       degreeLatex: {
         weight: numDegreeWeight,
         degree: numDegreeValue,
